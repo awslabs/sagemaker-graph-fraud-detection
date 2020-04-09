@@ -1,4 +1,4 @@
-# Amazon SageMaker and Deep Graph Library for Fraud Detection in Heterogenous Graphs
+# Amazon SageMaker and Deep Graph Library for Fraud Detection in Heterogeneous Graphs
 
 This project shows how to use [Amazon SageMaker](https://aws.amazon.com/sagemaker/) and [Deep Graph Library (DGL)](https://www.dgl.ai/) to train a graph neural network (GNN) model to detect malicious or fraudulent accounts or users.
 
