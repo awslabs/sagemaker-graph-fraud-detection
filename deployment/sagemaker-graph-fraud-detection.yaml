@@ -1,0 +1,379 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "(SA0002) - sagemaker-graph-fraud-detection: Solution for training a graph neural network model for fraud detection using Amazon SageMaker. Version 1"
+Parameters:
+  SolutionS3BucketName:
+    Description: Enter the name of the S3 bucket for the solution
+    Type: String
+  S3HistoricalTransactionsPrefix:
+    Description: Enter the S3 prefix where historical transactions/relations are stored.
+    Type: String
+    Default: "raw-data"
+  S3ProcessingJobInputPrefix:
+    Description: Enter the S3 prefix where inputs should be monitored for changes to start the processing job
+    Type: String
+    Default: "processing-input"
+  S3ProcessingJobOutputPrefix:
+    Description: Enter the S3 prefix where preprocessed data should be stored and monitored for changes to start the training job
+    Type: String
+    Default: "preprocessed-data"
+  S3TrainingJobOutputPrefix:
+    Description: Enter the S3 prefix where model and output artifacts from the training job should be stored
+    Type: String
+    Default: "training-output"
+  SageMakerProcessingJobContainerName:
+    Description: Name of the SageMaker processing job ECR Container
+    Type: String
+    Default:  "sagemaker-preprocessing-container"
+  SageMakerProcessingJobInstanceType:
+    Description: Instance type of the SageMaker processing job
+    Type: String
+    Default:  "ml.r5.24xlarge"
+  SageMakerTrainingJobInstanceType:
+    Description: Instance type of the SageMaker processing job
+    Type: String
+    Default:  "ml.p3.2xlarge"
+  SageMakerNotebookInstanceType:
+    Description: Instance type of the SageMaker notebook instance
+    Type: String
+    Default:  "ml.t3.medium"
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: S3 Configuration
+        Parameters:
+          - SolutionS3BucketName
+          - S3HistoricalTransactionsPrefix
+          - S3ProcessingJobInputPrefix
+          - S3ProcessingJobOutputPrefix
+          - S3TrainingJobOutputPrefix
+      -
+        Label:
+          default: SageMaker Configuration
+        Parameters:
+          - SageMakerProcessingJobContainerName
+          - SageMakerProcessingJobInstanceType
+          - SageMakerTrainingJobInstanceType
+          - SageMakerNotebookInstanceType
+    ParameterLabels:
+      SolutionS3BucketName:
+        default: Bucket Name
+      S3HistoricalTransactionsPrefix:
+        default: S3 Data Prefix
+      S3ProcessingJobInputPrefix:
+        default: S3 Processing Input Prefix
+      S3ProcessingJobOutputPrefix:
+        default: S3 Preprocessed Data Prefix
+      S3TrainingJobOutputPrefix:
+        default: S3 Training Results Prefix
+      SageMakerProcessingJobContainerName:
+        default: SageMaker Processing Container Name
+      SageMakerProcessingJobInstanceType:
+        default: SageMaker Processing Instance
+      SageMakerTrainingJobInstanceType:
+        default: SageMaker Training Instance
+      SageMakerNotebookInstanceType:
+        default: SageMaker Notebook Instance
+
+Mappings:
+  S3:
+    SolutionRef:
+      Bucket: "sagemaker-solutions-us-west-2"
+  Lambda:
+    DataPreprocessing:
+      S3Key: "Fraud-detection-in-financial-networks/build/data_preprocessing.zip"
+    GraphModelling:
+      S3Key: "Fraud-detection-in-financial-networks/build/graph_modelling.zip"
+  SageMaker:
+    Source:
+      S3Key: "Fraud-detection-in-financial-networks/source/sagemaker/"
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Ref SolutionS3BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          -
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      NotificationConfiguration:
+        LambdaConfigurations:
+          -
+            Event: s3:ObjectCreated:*
+            Function: !GetAtt DataPreprocessingLambda.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: !Ref S3ProcessingJobInputPrefix
+          -
+            Event: s3:ObjectCreated:*
+            Function: !GetAtt GraphModellingLambda.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: !Ref S3ProcessingJobOutputPrefix
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W35
+            reason: Configuring logging requires supplying an existing customer S3 bucket to store logs
+          - id: W51
+            reason: Default access policy suffices
+  NotebookInstanceExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - sagemaker.amazonaws.com
+            Action:
+            - 'sts:AssumeRole'
+  NotebookInstanceIAMPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: graph-fraud-detection-notebook-instance-policy
+      Roles:
+        - !Ref NotebookInstanceExecutionRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - sagemaker:CreateTrainingJob
+          - sagemaker:DescribeTrainingJob
+          - sagemaker:CreateProcessingJob
+          - sagemaker:DescribeProcessingJob
+          Resource:
+          - !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:*"
+        - Effect: Allow
+          Action:
+          - ecr:GetAuthorizationToken
+          - ecr:GetDownloadUrlForLayer
+          - ecr:BatchGetImage
+          - ecr:PutImage
+          - ecr:BatchCheckLayerAvailability
+          - ecr:CreateRepository
+          - ecr:DescribeRepositories
+          - ecr:InitiateLayerUpload
+          - ecr:CompleteLayerUpload
+          - ecr:UploadLayerPart
+          - ecr:TagResource
+          Resource:
+          - "*"
+          - !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*"
+        - Effect: Allow
+          Action:
+          - cloudwatch:PutMetricData
+          - cloudwatch:GetMetricData
+          - cloudwatch:GetMetricStatistics
+          - cloudwatch:ListMetrics
+          Resource:
+          - !Sub "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:*"
+        - Effect: Allow
+          Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:DescribeLogStreams
+          - logs:GetLogEvents
+          - logs:PutLogEvents
+          Resource:
+          - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/*"
+        - Effect: Allow
+          Action:
+          - iam:PassRole
+          Resource:
+          - !GetAtt NotebookInstanceExecutionRole.Arn
+          Condition:
+            StringEquals:
+              iam:PassedToService: sagemaker.amazonaws.com
+        - Effect: Allow
+          Action:
+          - iam:GetRole
+          Resource:
+          - !GetAtt NotebookInstanceExecutionRole.Arn
+        - Effect: Allow
+          Action:
+          - s3:ListBucket
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          Resource:
+          - !Sub "arn:aws:s3:::${SolutionS3BucketName}"
+          - !Sub "arn:aws:s3:::${SolutionS3BucketName}/*"
+          - !Sub
+            - "arn:aws:s3:::${SolutionRefBucketName}"
+            - SolutionRefBucketName: !FindInMap [S3, SolutionRef, Bucket]
+          - !Sub
+            - "arn:aws:s3:::${SolutionRefBucketName}/*"
+            - SolutionRefBucketName: !FindInMap [S3, SolutionRef, Bucket]
+        - Effect: Allow
+          Action:
+          - s3:CreateBucket
+          - s3:ListBucket
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          Resource:
+          - !Sub "arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}"
+          - !Sub "arn:aws:s3:::sagemaker-${AWS::Region}-${AWS::AccountId}/*"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: ECR GetAuthorizationToken is non resource-specific action
+  NotebookInstance:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties:
+      DirectInternetAccess: Enabled
+      InstanceType: !Ref SageMakerNotebookInstanceType
+      LifecycleConfigName: !GetAtt LifeCycleConfig.NotebookInstanceLifecycleConfigName
+      NotebookInstanceName: GraphFraudDetection
+      RoleArn: !GetAtt NotebookInstanceExecutionRole.Arn
+      VolumeSizeInGB: 120
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W1201
+            reason: Solution does not have KMS encryption enabled by default
+  LifeCycleConfig:
+    Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
+    Properties:
+      OnStart:
+        - Content:
+            Fn::Base64:
+              !Join
+              - ";"
+              - - cd /home/ec2-user/SageMaker
+                - chown -R ec2-user:ec2-user *
+                - !Join
+                  - ""
+                  - - aws s3 sync s3://
+                    - !FindInMap [S3, SolutionRef, Bucket]
+                    - "/"
+                    - !FindInMap [SageMaker, Source, S3Key]
+                    - " ."
+                - !Sub "sed -i 's/SAGEMAKER_S3_BUCKET/${SolutionS3BucketName}/g' dgl-fraud-detection.ipynb"
+                - !Sub "sed -i 's/SAGEMAKER_PROCESSING_INSTANCE_TYPE/${SageMakerProcessingJobInstanceType}/g' dgl-fraud-detection.ipynb"
+                - !Sub "sed -i 's/SAGEMAKER_TRAINING_INSTANCE_TYPE/${SageMakerTrainingJobInstanceType}/g' dgl-fraud-detection.ipynb"
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        -
+          PolicyName: InvokeSagemaker
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - sagemaker:CreateTrainingJob
+              - sagemaker:DescribeTrainingJob
+              - sagemaker:CreateProcessingJob
+              - sagemaker:DescribeProcessingJob
+              Resource:
+              - !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:*"
+        -
+          PolicyName: ReadWriteFromS3
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - s3:ListBucket
+              - s3:GetObject
+              - s3:PutObject
+              Resource:
+              - !Sub "arn:aws:s3:::${SolutionS3BucketName}"
+              - !Sub "arn:aws:s3:::${SolutionS3BucketName}/*"
+  DataPreprocessingLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: "index.process_event"
+      FunctionName: "sagemaker-graph-fraud-data-preprocessing"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          processing_job_ecr_repository: !Ref SageMakerProcessingJobContainerName
+          processing_job_input_s3_prefix: !Ref S3ProcessingJobInputPrefix
+          processing_job_instance_type: !Ref SageMakerProcessingJobInstanceType
+          processing_job_output_s3_prefix: !Ref S3ProcessingJobOutputPrefix
+          processing_job_role_arn: !GetAtt NotebookInstanceExecutionRole.Arn
+          processing_job_s3_bucket: !Ref SolutionS3BucketName
+          processing_job_s3_raw_data_key: !Ref S3HistoricalTransactionsPrefix
+      Runtime: "python3.7"
+      Code:
+        S3Bucket: !FindInMap [S3, SolutionRef, Bucket]
+        S3Key: !FindInMap [Lambda, DataPreprocessing, S3Key]
+      Timeout : 60
+      MemorySize : 256
+  DataPreprocessingLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref DataPreprocessingLambda
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 'arn:aws:s3:::${SolutionS3BucketName}'
+      SourceAccount: !Ref AWS::AccountId
+  GraphModellingLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: "index.process_event"
+      FunctionName: "sagemaker-graph-fraud-model-training"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          training_job_instance_type: !Ref SageMakerTrainingJobInstanceType
+          training_job_output_s3_prefix: !Ref S3TrainingJobOutputPrefix
+          training_job_role_arn: !GetAtt NotebookInstanceExecutionRole.Arn
+          training_job_s3_bucket: !Ref SolutionS3BucketName
+      Runtime: "python3.7"
+      Code:
+        S3Bucket: !FindInMap [S3, SolutionRef, Bucket]
+        S3Key: !FindInMap [Lambda, GraphModelling, S3Key]
+      Timeout : 60
+      MemorySize : 256
+  GraphModellingLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref GraphModellingLambda
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub 'arn:aws:s3:::${SolutionS3BucketName}'
+      SourceAccount: !Ref AWS::AccountId
+
+Outputs:
+  NotebookInstanceId:
+    Description: "SageMaker Notebook instance to manually orchestrate data preprocessing and model training"
+    Value: !Ref NotebookInstance
+  DataPreprocessingLambdaId:
+    Description: "Lambda function to automate preprocessing. Put a list of accounts in the data preprocessing input S3 prefix to trigger"
+    Value: !Ref DataPreprocessingLambda
+  GraphModellingLambda:
+    Description: "Lambda function to automate model training once data preprocessing is complete. Triggered by data in preprocessing output S3 prefix"
+    Value: !Ref GraphModellingLambda
