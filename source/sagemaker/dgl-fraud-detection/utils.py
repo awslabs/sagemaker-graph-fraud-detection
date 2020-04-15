@@ -3,38 +3,15 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import roc_curve, auc
 from mxnet import nd, gluon
-import dgl
 import networkx as nx
 import matplotlib.pyplot as plt
-
-
-def _get_label_dict(labels_path):
-    """
-    Returns a dictionary that maps nodes to labels
-
-    :param labels_path: Path to where the labels are store (accepts name of a dynamo table or a local path)
-    :return: dict
-    """
-    tag_df = pd.read_csv(labels_path)
-    return {row[tag_df.columns[0]]: row[tag_df.columns[1]] for _, row in tag_df.iterrows()}
-
-
-def _get_label_for_node(node, node_to_label):
-    """
-    For a particular node returns the label of that node given a dictionary
-
-    :param node: a node to get the label for
-    :param node_to_label: a dictionary that maps nodes to their labels
-    :return: np.float the label of the node or nan
-    """
-    return node_to_label[int(node)] if int(node) in node_to_label else np.nan
 
 
 def read_masked_nodes(masked_nodes_path):
     """
     Returns a list of nodes extracted from the path passed in
 
-    :param masked_nodes_path: filepath containing list of nodes to be masked
+    :param masked_nodes_path: filepath containing list of nodes to be masked i.e test users
     :return: list
     """
     with open(masked_nodes_path, "r") as fh:
@@ -65,19 +42,19 @@ def _get_mask(id_to_node, node_to_id, num_nodes, masked_nodes, additional_mask_r
     return train_mask, test_mask
 
 
-def get_labels(id_to_node, labels_path, masked_nodes_path, additional_mask_rate=0):
+def get_labels(id_to_node, num_nodes, labels_path, masked_nodes_path, additional_mask_rate=0):
     """
 
     :param id_to_node: dictionary mapping node names(id) to dgl node idx
+    :param num_nodes: number of user nodes in the graph
     :param labels_path: filepath containing labelled nodes
     :param masked_nodes_path: filepath containing list of nodes to be masked
     :param additional_mask_rate: additional_mask_rate: float for additional masking of nodes with labels during training
     :return: (list, list) train and test mask array
     """
     node_to_id = {v: k for k, v in id_to_node.items()}
-    num_nodes = max(id_to_node.values()) + 1
-    user_to_tag = _get_label_dict(labels_path)
-    labels = np.array([_get_label_for_node(node_to_id[idx], user_to_tag) for idx in range(num_nodes)])
+    user_to_label = pd.read_csv(labels_path).set_index('userId')
+    labels = user_to_label.loc[map(int, pd.Series(node_to_id)[np.arange(num_nodes)].values)].label.values
     masked_nodes = read_masked_nodes(masked_nodes_path)
     train_mask, test_mask = _get_mask(id_to_node, node_to_id,  num_nodes, masked_nodes,
                                       additional_mask_rate=additional_mask_rate)
@@ -138,7 +115,7 @@ def get_metrics(model, features, labels, dataloader, g, mask, ctx, out_dir):
 
     save_roc_curve(fpr, tpr, roc_auc, os.path.join(out_dir, "roc_curve.png"))
 
-    return acc, f1, precision, recall, confusion_matrix
+    return acc, f1, precision, recall, roc_auc, confusion_matrix
 
 
 def get_model_predictions(model, g, dataloader, features, ctx):

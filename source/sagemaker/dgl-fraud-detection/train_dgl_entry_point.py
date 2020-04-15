@@ -38,11 +38,11 @@ def parse_args():
     parser.add_argument('--threshold', type=float, default=0, help='threshold for making predictions, default : argmax')
     parser.add_argument('--model', type=str, default='rgcn', help='gnn to use. options: gcn, graphsage, gat, gem')
     parser.add_argument('--num-gpus', type=int, default=1)
-    parser.add_argument('--batch-size', type=int, default=1000)
+    parser.add_argument('--batch-size', type=int, default=500)
     parser.add_argument('--optimizer', type=str, default='adam')
     parser.add_argument('--lr', type=float, default=1e-2)
-    parser.add_argument('--n-epochs', type=int, default=200)
-    parser.add_argument('--n-neighbors', type=int, default=20, help='number of neighbors to sample')
+    parser.add_argument('--n-epochs', type=int, default=20)
+    parser.add_argument('--n-neighbors', type=int, default=80, help='number of neighbors to sample')
     parser.add_argument('--n-hidden', type=int, default=16, help='number of hidden units')
     parser.add_argument('--n-layers', type=int, default=3, help='number of hidden layers')
     parser.add_argument('--weight-decay', type=float, default=5e-4, help='Weight for L2 loss')
@@ -66,61 +66,50 @@ def get_logger(name):
 
 
 def construct_graph():
-    if (os.path.exists('cache/heterograph.pkl') and args.heterogeneous) \
-            or (os.path.exists('cache/graph.pkl') and not args.heterogeneous):
-        file_path = "heterograph.pkl" if args.heterogeneous else "graph.pkl"
-        with open(os.path.join('cache', file_path), 'rb') as f:
-            cache = pickle.load(f)
-            g = cache['graph']
-            features = g.nodes['user'].data['features'] if args.heterogeneous else g.ndata['features']
-            id_to_node = cache['node_mapping']
-    else:
-        if args.heterogeneous:
-            logging.info("Getting relation graphs from the following edge lists : {} ".format(args.edges))
-            edgelists, id_to_node = {}, {}
-            for i, edge in enumerate(args.edges):
-                edgelist, id_to_node, src, dst = parse_edgelist(os.path.join(args.training_dir, edge), id_to_node,
-                                                                header=False)
-                edgelists[(src, 'relation{}'.format(i), dst)] = edgelist
+    if args.heterogeneous:
+        logging.info("Getting relation graphs from the following edge lists : {} ".format(args.edges))
+        edgelists, id_to_node = {}, {}
+        for i, edge in enumerate(args.edges):
+            edgelist, id_to_node, src, dst = parse_edgelist(os.path.join(args.training_dir, edge), id_to_node,
+                                                            header=False)
+            edgelists[(src, 'relation{}'.format(i), dst)] = edgelist
+            logging.info("Read edges for relation{} from edgelist: {}".format(i, os.path.join(args.training_dir, edge)))
 
-                # reverse edge list so that relation is undirected
-                edgelists[(dst, 'reverse_relation{}'.format(i), src)] = [(b, a) for a, b in edgelist]
+            # reverse edge list so that relation is undirected
+            # edgelists[(dst, 'reverse_relation{}'.format(i), src)] = [(b, a) for a, b in edgelist]
 
-            # get features for nodes
-            features, new_nodes = get_features(id_to_node['user'], os.path.join(args.training_dir, args.nodes))
-            # handle user nodes that have features but don't have any connections
+        # get features for nodes
+        features, new_nodes = get_features(id_to_node['user'], os.path.join(args.training_dir, args.nodes))
+        logging.info("Read in user features for user nodes")
+        # handle user nodes that have features but don't have any connections
+        if new_nodes:
             edgelists[('user', 'relation'.format(i+1), 'none')] = [(node, 0) for node in new_nodes]
             edgelists[('none', 'reverse_relation{}'.format(i + 1), 'user')] = [(0, node) for node in new_nodes]
 
-            g = dgl.heterograph(edgelists)
-            logging.info(
-                "Constructed heterograph with the following metagraph structure: Node types {}, Edge types{}".format(
-                    g.ntypes, g.etypes))
-            logging.info("Number of nodes of type user : {}".format(g.number_of_nodes('user')))
+        g = dgl.heterograph(edgelists)
+        logging.info(
+            "Constructed heterograph with the following metagraph structure: Node types {}, Edge types{}".format(
+                g.ntypes, g.canonical_etypes))
+        logging.info("Number of nodes of type user : {}".format(g.number_of_nodes('user')))
 
-            features = normalize(nd.array(features))
-            g.nodes['user'].data['features'] = features
+        features = nd.array(features)
+        g.nodes['user'].data['features'] = features
 
-            id_to_node = id_to_node['user']
+        id_to_node = id_to_node['user']
 
-            with open(os.path.join('cache', 'heterograph.pkl'), 'wb') as f:
-                pickle.dump({'graph': g, 'node_mapping': id_to_node}, f)
+    else:
+        g = dgl.DGLGraph()
+        g, id_to_node = from_csv(g,
+                                 os.path.join(args.training_dir, args.edges[0]),
+                                 os.path.join(args.training_dir, args.nodes))
 
-            save_graph_drawing(g.metagraph, os.path.join(args.output_dir, "heterogeneous_metagraph.png"))
+        logging.info('read graph from node list and edge list')
 
-        else:
-            g = dgl.DGLGraph()
-            g, id_to_node = from_csv(g,
-                                     os.path.join(args.training_dir, args.edges[0]),
-                                     os.path.join(args.training_dir, args.nodes))
+        with open(os.path.join('cache', 'heterograph.pkl'), 'wb') as f:
+            pickle.dump({'graph': g, 'node_mapping': id_to_node}, f)
 
-            logging.info('read graph from node list and edge list')
-
-            with open(os.path.join('cache', 'heterograph.pkl'), 'wb') as f:
-                pickle.dump({'graph': g, 'node_mapping': id_to_node}, f)
-
-            features = normalize(g.ndata['features'])
-            g.ndata['features'] = features
+        features = normalize(g.ndata['features'])
+        g.ndata['features'] = features
 
     return g, features, id_to_node
 
@@ -151,7 +140,7 @@ def train(model, trainer, loss, features, labels, train_loader, test_loader, tra
             batch_indices = nd.array(batch, ctx=ctx)
             with autograd.record():
                 pred = model(node_flow, features[batch_nids.as_in_context(ctx)])
-                l = loss(pred, labels[batch_indices], mx.nd.expand_dims(train_mask, 1)[batch_indices])
+                l = loss(pred, labels[batch_indices], mx.nd.expand_dims(scale_pos_weight*train_mask, 1)[batch_indices])
                 l = l.sum()/len(batch)
 
             l.backward()
@@ -164,16 +153,17 @@ def train(model, trainer, loss, features, labels, train_loader, test_loader, tra
         logging.info("Epoch {:05d} | Time(s) {:.4f} | Loss {:.4f} | F1 {:.4f} | ETputs(KTEPS) {:.2f}".format(
                 epoch, np.mean(duration), loss_val/(n+1), metric, n_edges / np.mean(duration) / 1000))
 
+    save_model(model)
     if args.predictions:
         save_prediction(model, g, features)
     else:
-        acc, f1, p, r, cm = get_metrics(model, features, labels, test_loader, test_g, test_mask, ctx, args.output_dir)
+        acc, f1, p, r, roc, cm = get_metrics(model, features, labels, test_loader, test_g, test_mask, ctx,
+                                             args.output_dir)
         logging.info("Metrics")
         logging.info("""Confusion Matrix: 
                         {}
-                        f1: {:.4f}, precision: {:.4f}, recall: {:.4f}, acc: {:.4f}
-                     """.format(cm, f1, p, r, acc))
-    save_model(model)
+                        f1: {:.4f}, precision: {:.4f}, recall: {:.4f}, acc: {:.4f}, roc: {:.4f}
+                     """.format(cm, f1, p, r, acc, roc))
 
 
 def evaluate(model, g, features, labels, mask):
@@ -188,16 +178,15 @@ def evaluate(model, g, features, labels, mask):
 
     # preds = nd.concat(*preds, dim=0).argmax(axis=1)
     preds = nd.concat(*preds, dim=0)
-    mask = nd.array(np.where(mask.asnumpy()))
-    f1.update(labels[mask], preds[mask, :])
-    # accuracy = ((preds == labels) * mask).sum() / mask.sum().asscalar()
+    mask = nd.array(np.where(mask.asnumpy()), ctx=ctx)
+    f1.update(preds=nd.softmax(preds[mask], axis=1).reshape(-3, 0), labels=labels[mask].reshape(-1,))
     return f1.get()[1]
 
 
 def save_prediction(model, g, features):
     prediction_query = read_masked_nodes(os.path.join(args.training_dir, args.new_accounts))
     pred_indices = np.array([id_to_node[query] for query in prediction_query])
-    batch_size = args.batch_size if args.mini_batch else len(prediction_indices)
+    batch_size = args.batch_size if args.mini_batch else len(pred_indices)
     batches = gluon.data.BatchSampler(np.arange(features.shape[0]), batch_size, 'keep')
     predictions = get_model_class_predictions(model, g, batches, features, ctx, threshold=args.threshold)[pred_indices]
     pd.DataFrame.from_dict({'user': prediction_query, 'pred': predictions}).to_csv(os.path.join(args.output_dir,
@@ -283,9 +272,13 @@ if __name__ == '__main__':
 
     g, features, id_to_node = construct_graph()
 
+    logging.info("Getting labels")
     labels, train_mask, test_mask = get_labels(id_to_node,
+                                               g.number_of_nodes('user'),
                                                os.path.join(args.training_dir, args.labels),
                                                os.path.join(args.training_dir, args.new_accounts))
+    logging.info("Got labels")
+
     labels = nd.array(labels).astype('float32')
     train_mask = nd.array(train_mask).astype('float32')
     test_mask = nd.array(test_mask).astype('float32')
@@ -344,6 +337,7 @@ if __name__ == '__main__':
     train_data, test_data = get_dataloader(features)
 
     loss = gluon.loss.SoftmaxCELoss()
+    scale_pos_weight = ((train_mask.shape[0] - train_mask.sum()) / train_mask.sum())
 
     logging.info(model)
     logging.info(model.collect_params())
