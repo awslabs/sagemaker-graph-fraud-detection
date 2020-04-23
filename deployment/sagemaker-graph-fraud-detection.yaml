@@ -368,12 +368,9 @@ Resources:
       SourceAccount: !Ref AWS::AccountId
 
 Outputs:
-  NotebookInstanceId:
+  SourceCode:
+    Description: "Open Jupyter IDE. This authenticate you against Jupyter."
+    Value: !Sub "https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/notebook-instances/openNotebook/GraphFraudDetection?view=classic"
+  NotebookInstance:
     Description: "SageMaker Notebook instance to manually orchestrate data preprocessing and model training"
-    Value: !Ref NotebookInstance
-  DataPreprocessingLambdaId:
-    Description: "Lambda function to automate preprocessing. Put a list of accounts in the data preprocessing input S3 prefix to trigger"
-    Value: !Ref DataPreprocessingLambda
-  GraphModellingLambda:
-    Description: "Lambda function to automate model training once data preprocessing is complete. Triggered by data in preprocessing output S3 prefix"
-    Value: !Ref GraphModellingLambda
+    Value: !Sub "https://graphfrauddetection.notebook.${AWS::Region}.sagemaker.aws/notebooks/dgl-fraud-detection.ipynb"
