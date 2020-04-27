@@ -18,15 +18,15 @@ The project also contains a [cloud formation template](deployment/sagemaker-grap
 
 ## Getting Started
 
-To get started quickly, use the following quick-launch link to deploying the resources in this project.
+To get started quickly, use the following quick-launch link to create a CloudFormation stack and deploy the resources in this project.
 
 | Region | Stack |
 | ---- | ---- |
 |US West (Oregon) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/create/review?templateURL=https://s3.amazonaws.com/sagemaker-solutions-us-west-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=SageMaker-Graph-Fraud-Detection) |
 
-To launch the stack, enter a name in the **Bucket Name** field under S3 configurations, check the box to acknowledge creation of IAM resources, and click Create Stack.
+On the stack creation page, enter a name in the **Bucket Name** field under S3 configurations, check the box to acknowledge creation of IAM resources, and click **Create Stack**.
 
-Once the stack is created, go to the Outputs tab and click on the SageMakerNotebook link. Once the notebook opens you can run then run each cell in the notebook
+Once the stack is created, go to the Outputs tab and click on the SageMakerNotebook link. This will open up the jupyter notebook in a SageMaker Notebook instance where you can run the code in the notebook.
 
 ## Architecture
 
