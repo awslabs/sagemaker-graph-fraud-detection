@@ -41,6 +41,13 @@ def load_data():
                                sep='\t', compression='gzip', names=relations_cols)
     logging.info("Shape of relations data is {}".format(relations_df.shape))
 
+    # Take only first two days of relations for demo
+    relations_df = relations_df[relations_df.day < 2]
+
+    users_df = users_df.merge(pd.DataFrame({'userId': relations_df[["src", "dst"]].stack().drop_duplicates().values}),
+                              on='userId',
+                              how='inner')
+
     return users_df, relations_df
 
 
@@ -75,7 +82,7 @@ def get_test_users(users_df, relations_df, train_days):
 
 
 def extract_activity_features(rel_df):
-    activity_features_size = 10 * 24
+    activity_features_size = 2 * 24
     time_fts = np.zeros((rel_df.shape[0], activity_features_size))
     rel_df['hr'] = rel_df['ms'].apply(lambda x: int(x//3.6e6))
     time_fts[np.arange(time_fts.shape[0]), (rel_df['day'].values*24 + rel_df['hr'].values)] = 1
@@ -91,7 +98,7 @@ def parallelize_feature_extraction(df, func, n_cores=multiprocessing.cpu_count()
 
 
 def get_features_and_edgelist(users_df, relations_df):
-    # Feature size = 240 {hourly(24) * daily(10) usage}  + 10 demographic = 250
+    # Feature size = {hourly(24) * daily(2) usage}  + 10 demographic = 58
     user_demo_features = pd.get_dummies(users_df.iloc[:, :-1], columns=['sex', 'ageGroup'])
     user_activity_features = parallelize_feature_extraction(relations_df, extract_activity_features)
     user_features = user_demo_features.merge(user_activity_features, how='left', on='userId').fillna(0)
