@@ -34,7 +34,9 @@ def parse_args():
                         default=True, help='use mini-batch training and sample graph')
     parser.add_argument('--labels', type=str, default='tags.csv')
     parser.add_argument('--new-accounts', type=str, default='test_users.csv')
-    parser.add_argument('--predictions', type=str, default='', help='filename to save predictions on new-accounts')
+    parser.add_argument('--predictions', type=str, default='preds.csv', help='file to save predictions on new-accounts')
+    parser.add_argument('--compute-metrics', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
+                        default=True, help='compute evaluation metrics after training')
     parser.add_argument('--threshold', type=float, default=0, help='threshold for making predictions, default : argmax')
     parser.add_argument('--model', type=str, default='rgcn', help='gnn to use. options: gcn, graphsage, gat, gem')
     parser.add_argument('--num-gpus', type=int, default=1)
@@ -42,7 +44,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, default='adam')
     parser.add_argument('--lr', type=float, default=1e-2)
     parser.add_argument('--n-epochs', type=int, default=20)
-    parser.add_argument('--n-neighbors', type=int, default=80, help='number of neighbors to sample')
+    parser.add_argument('--n-neighbors', type=int, default=10, help='number of neighbors to sample')
     parser.add_argument('--n-hidden', type=int, default=16, help='number of hidden units')
     parser.add_argument('--n-layers', type=int, default=3, help='number of hidden layers')
     parser.add_argument('--weight-decay', type=float, default=5e-4, help='Weight for L2 loss')
@@ -148,17 +150,16 @@ def train(model, trainer, loss, features, labels, train_loader, test_loader, tra
 
             loss_val += l.asscalar()
             # logging.info("Current loss {:04f}".format(loss_val/(n+1)))
+
         duration.append(time.time() - tic)
         metric = evaluate(model, train_g, features, labels, train_mask)
         logging.info("Epoch {:05d} | Time(s) {:.4f} | Loss {:.4f} | F1 {:.4f} | ETputs(KTEPS) {:.2f}".format(
                 epoch, np.mean(duration), loss_val/(n+1), metric, n_edges / np.mean(duration) / 1000))
 
     save_model(model)
-    if args.predictions:
-        save_prediction(model, g, features)
-    else:
-        acc, f1, p, r, roc, cm = get_metrics(model, features, labels, test_loader, test_g, test_mask, ctx,
-                                             args.output_dir)
+    class_preds, pred_proba = save_prediction(model, test_g, test_loader, features)
+    if args.compute_metrics:
+        acc, f1, p, r, roc, cm = get_metrics(class_preds, pred_proba, labels, test_mask, args.output_dir)
         logging.info("Metrics")
         logging.info("""Confusion Matrix: 
                         {}
@@ -183,15 +184,15 @@ def evaluate(model, g, features, labels, mask):
     return f1.get()[1]
 
 
-def save_prediction(model, g, features):
+def save_prediction(model, g, batches, features):
     prediction_query = read_masked_nodes(os.path.join(args.training_dir, args.new_accounts))
     pred_indices = np.array([id_to_node[query] for query in prediction_query])
-    batch_size = args.batch_size if args.mini_batch else len(pred_indices)
-    batches = gluon.data.BatchSampler(np.arange(features.shape[0]), batch_size, 'keep')
-    predictions = get_model_class_predictions(model, g, batches, features, ctx, threshold=args.threshold)[pred_indices]
-    pd.DataFrame.from_dict({'user': prediction_query, 'pred': predictions}).to_csv(os.path.join(args.output_dir,
-                                                                                                args.predictions),
-                                                                                   index=False)
+    pred, pred_proba = get_model_class_predictions(model, g, batches, features, ctx, threshold=args.threshold)
+    pd.DataFrame.from_dict({'user': prediction_query,
+                            'pred_proba': pred_proba[pred_indices],
+                            'pred': pred[pred_indices]}).to_csv(os.path.join(args.output_dir, args.predictions),
+                                                                index=False)
+    return pred, pred_proba
 
 
 def save_model(model):
@@ -330,7 +331,7 @@ if __name__ == '__main__':
             else NeighborSampler(g, args.n_layers, args.n_neighbors)
 
         test_g = HeteroGraphNeighborSampler(g, 'user', args.n_layers) if args.heterogeneous\
-            else NeighborSampler(g, args.n_layers, args.n_neighbors)
+            else NeighborSampler(g, args.n_layers)
     else:
         train_g, test_g = FullGraphSampler(g, args.n_layers), FullGraphSampler(g, args.n_layers)
 

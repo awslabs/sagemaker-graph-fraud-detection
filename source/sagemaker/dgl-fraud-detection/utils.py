@@ -88,11 +88,26 @@ def get_features(id_to_node, node_features):
     return features, new_nodes
 
 
-def get_metrics(model, features, labels, dataloader, g, mask, ctx, out_dir):
-    raw_preds = get_model_predictions(model, g, dataloader, features, ctx)
-    pred = raw_preds.argmax(axis=1).asnumpy().flatten().astype(int)
+def get_model_predictions(model, g, dataloader, features, ctx):
+    pred = []
+    for batch in dataloader:
+        node_flow, batch_nids = g.sample_block(batch)
+        pred.append(model(node_flow, features[batch_nids.as_in_context(ctx)]))
+        nd.waitall()
+    return nd.concat(*pred, dim=0)
+
+
+def get_model_class_predictions(model, g, datalaoder, features, ctx, threshold=None):
+    unnormalized_preds = get_model_predictions(model, g, datalaoder, features, ctx)
+    pred_proba = nd.softmax(unnormalized_preds)[:, 1].asnumpy().flatten()
+    if not threshold:
+        return unnormalized_preds.argmax(axis=1).asnumpy().flatten().astype(int), pred_proba
+    return np.where(pred_proba > threshold, 1, 0), pred_proba
+
+
+def get_metrics(pred, pred_proba, labels, mask, out_dir):
     labels, mask = labels.asnumpy().flatten().astype(int), mask.asnumpy().flatten().astype(int)
-    labels, pred = labels[np.where(mask)], pred[np.where(mask)]
+    labels, pred, pred_proba = labels[np.where(mask)], pred[np.where(mask)], pred_proba[np.where(mask)]
 
     acc = ((pred == labels)).sum() / mask.sum()
 
@@ -109,33 +124,12 @@ def get_metrics(model, features, labels, dataloader, g, mask, ctx, out_dir):
                                     columns=["labels positive", "labels negative"],
                                     index=["predicted positive", "predicted negative"])
 
-    pred_proba = normalize_predictions(raw_preds)[np.where(mask)]
     fpr, tpr, _ = roc_curve(labels, pred_proba)
     roc_auc = auc(fpr, tpr)
 
     save_roc_curve(fpr, tpr, roc_auc, os.path.join(out_dir, "roc_curve.png"))
 
     return acc, f1, precision, recall, roc_auc, confusion_matrix
-
-
-def get_model_predictions(model, g, dataloader, features, ctx):
-    pred = []
-    for batch in dataloader:
-        node_flow, batch_nids = g.sample_block(batch)
-        pred.append(model(node_flow, features[batch_nids.as_in_context(ctx)]))
-        nd.waitall()
-    return nd.concat(*pred, dim=0)
-
-
-def normalize_predictions(preds):
-    return nd.softmax(preds)[:, 1].asnumpy().flatten()
-
-
-def get_model_class_predictions(model, g, datalaoder, features, ctx, threshold=None):
-    unnormalized_preds = get_model_predictions(model, g, datalaoder, features, ctx)
-    if not threshold:
-        return unnormalized_preds.argmax(axis=1).asnumpy().flatten().astype(int)
-    return np.where(normalize_predictions(unnormalized_preds) > threshold, 1, 0)
 
 
 def save_roc_curve(fpr, tpr, roc_auc, location):
