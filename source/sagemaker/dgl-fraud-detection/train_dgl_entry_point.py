@@ -67,21 +67,20 @@ def get_logger(name):
     return logger
 
 
-def construct_graph():
-    if args.heterogeneous:
-        logging.info("Getting relation graphs from the following edge lists : {} ".format(args.edges))
+def construct_graph(training_dir, edges, nodes, heterogeneous=True):
+    if heterogeneous:
+        logging.info("Getting relation graphs from the following edge lists : {} ".format(edges))
         edgelists, id_to_node = {}, {}
-        for i, edge in enumerate(args.edges):
-            edgelist, id_to_node, src, dst = parse_edgelist(os.path.join(args.training_dir, edge), id_to_node,
-                                                            header=False)
+        for i, edge in enumerate(edges):
+            edgelist, id_to_node, src, dst = parse_edgelist(os.path.join(training_dir, edge), id_to_node, header=False)
             edgelists[(src, 'relation{}'.format(i), dst)] = edgelist
-            logging.info("Read edges for relation{} from edgelist: {}".format(i, os.path.join(args.training_dir, edge)))
+            logging.info("Read edges for relation{} from edgelist: {}".format(i, os.path.join(training_dir, edge)))
 
             # reverse edge list so that relation is undirected
             # edgelists[(dst, 'reverse_relation{}'.format(i), src)] = [(b, a) for a, b in edgelist]
 
         # get features for nodes
-        features, new_nodes = get_features(id_to_node['user'], os.path.join(args.training_dir, args.nodes))
+        features, new_nodes = get_features(id_to_node['user'], os.path.join(training_dir, nodes))
         logging.info("Read in user features for user nodes")
         # handle user nodes that have features but don't have any connections
         if new_nodes:
@@ -101,14 +100,9 @@ def construct_graph():
 
     else:
         g = dgl.DGLGraph()
-        g, id_to_node = from_csv(g,
-                                 os.path.join(args.training_dir, args.edges[0]),
-                                 os.path.join(args.training_dir, args.nodes))
+        g, id_to_node = from_csv(g, os.path.join(training_dir, edges[0]), os.path.join(training_dir, nodes))
 
         logging.info('read graph from node list and edge list')
-
-        with open(os.path.join('cache', 'heterograph.pkl'), 'wb') as f:
-            pickle.dump({'graph': g, 'node_mapping': id_to_node}, f)
 
         features = normalize(g.ndata['features'])
         g.ndata['features'] = features
@@ -122,17 +116,18 @@ def normalize(feature_matrix):
     return (feature_matrix - mean) / stdev
 
 
-def get_dataloader(features):
-    batch_size = args.batch_size if args.mini_batch else features.shape[0]
-    train_dataloader = gluon.data.BatchSampler(gluon.data.RandomSampler(features.shape[0]), batch_size, 'keep')
-    test_dataloader = gluon.data.BatchSampler(gluon.data.SequentialSampler(features.shape[0]), batch_size, 'keep')
+def get_dataloader(data_size, batch_size, mini_batch=True):
+    batch_size = batch_size if mini_batch else data_size
+    train_dataloader = gluon.data.BatchSampler(gluon.data.RandomSampler(data_size), batch_size, 'keep')
+    test_dataloader = gluon.data.BatchSampler(gluon.data.SequentialSampler(data_size), batch_size, 'keep')
 
     return train_dataloader, test_dataloader
 
 
-def train(model, trainer, loss, features, labels, train_loader, test_loader, train_g, test_g, train_mask, test_mask):
+def train(model, trainer, loss, features, labels, train_loader, test_loader, train_g, test_g, train_mask, test_mask,
+          ctx, n_epochs, batch_size, output_dir, thresh, scale_pos_weight, compute_metrics=True, mini_batch=True):
     duration = []
-    for epoch in range(args.n_epochs):
+    for epoch in range(n_epochs):
         tic = time.time()
         loss_val = 0.
 
@@ -152,25 +147,27 @@ def train(model, trainer, loss, features, labels, train_loader, test_loader, tra
             # logging.info("Current loss {:04f}".format(loss_val/(n+1)))
 
         duration.append(time.time() - tic)
-        metric = evaluate(model, train_g, features, labels, train_mask)
+        metric = evaluate(model, train_g, features, labels, train_mask, ctx, batch_size, mini_batch)
         logging.info("Epoch {:05d} | Time(s) {:.4f} | Loss {:.4f} | F1 {:.4f} | ETputs(KTEPS) {:.2f}".format(
                 epoch, np.mean(duration), loss_val/(n+1), metric, n_edges / np.mean(duration) / 1000))
 
-    save_model(model)
-    class_preds, pred_proba = save_prediction(model, test_g, test_loader, features)
-    if args.compute_metrics:
-        acc, f1, p, r, roc, cm = get_metrics(class_preds, pred_proba, labels, test_mask, args.output_dir)
+    class_preds, pred_proba = get_model_class_predictions(model, test_g, test_loader, features, ctx, threshold=thresh)
+
+    if compute_metrics:
+        acc, f1, p, r, roc, cm = get_metrics(class_preds, pred_proba, labels, test_mask, output_dir)
         logging.info("Metrics")
         logging.info("""Confusion Matrix: 
                         {}
                         f1: {:.4f}, precision: {:.4f}, recall: {:.4f}, acc: {:.4f}, roc: {:.4f}
                      """.format(cm, f1, p, r, acc, roc))
 
+    return model, class_preds, pred_proba
 
-def evaluate(model, g, features, labels, mask):
+
+def evaluate(model, g, features, labels, mask, ctx, batch_size, mini_batch=True):
     f1 = mx.metric.F1()
     preds = []
-    batch_size = args.batch_size if args.mini_batch else features.shape[0]
+    batch_size = batch_size if mini_batch else features.shape[0]
     dataloader = gluon.data.BatchSampler(gluon.data.SequentialSampler(features.shape[0]),  batch_size, 'keep')
     for batch in dataloader:
         node_flow, batch_nids = g.sample_block(batch)
@@ -184,77 +181,77 @@ def evaluate(model, g, features, labels, mask):
     return f1.get()[1]
 
 
-def save_prediction(model, g, batches, features):
-    prediction_query = read_masked_nodes(os.path.join(args.training_dir, args.new_accounts))
+def save_prediction(pred, pred_proba, id_to_node, training_dir, new_accounts, output_dir, predictions_file):
+    prediction_query = read_masked_nodes(os.path.join(training_dir, new_accounts))
     pred_indices = np.array([id_to_node[query] for query in prediction_query])
-    pred, pred_proba = get_model_class_predictions(model, g, batches, features, ctx, threshold=args.threshold)
+
     pd.DataFrame.from_dict({'user': prediction_query,
                             'pred_proba': pred_proba[pred_indices],
-                            'pred': pred[pred_indices]}).to_csv(os.path.join(args.output_dir, args.predictions),
+                            'pred': pred[pred_indices]}).to_csv(os.path.join(output_dir, predictions_file),
                                                                 index=False)
-    return pred, pred_proba
 
 
-def save_model(model):
-    model.save_parameters(os.path.join(args.model_dir, 'model.params'))
-    with open(os.path.join(args.model_dir, 'model_hyperparams.pkl'), 'wb') as f:
-        pickle.dump(args, f)
+def save_model(g, model, model_dir, hyperparams):
+    model.save_parameters(os.path.join(model_dir, 'model.params'))
+    with open(os.path.join(model_dir, 'model_hyperparams.pkl'), 'wb') as f:
+        pickle.dump(hyperparams, f)
+    with open(os.path.join(model_dir, 'graph.pkl'), 'wb') as f:
+        pickle.dump(g, f)
 
 
-def get_model(args, load_stored=False):
+def get_model(g, hyperparams, in_feats, n_classes, ctx, model_dir=None):
 
-    if load_stored:  # load using saved model state
-        with open(os.path.join(args.model_dir, 'model_hyperparams.pkl'), 'rb') as f:
-            args = pickle.load(f)
+    if model_dir:  # load using saved model state
+        with open(os.path.join(model_dir, 'model_hyperparams.pkl'), 'rb') as f:
+            hyperparams = pickle.load(f)
+        with open(os.path.join(model_dir, 'graph.pkl'), 'rb') as f:
+            g = pickle.load(f)
 
-    in_feats = args.embedding_size if args.no_features else features.shape[1]
-    n_classes = 2
-
-    if args.heterogeneous:
+    if hyperparams['heterogeneous']:
         model = HeteroRGCN(g,
                            in_feats,
-                           args.n_hidden,
+                           hyperparams['n_hidden'],
                            n_classes,
-                           args.n_layers,
-                           args.embedding_size,
+                           hyperparams['n_layers'],
+                           hyperparams['embedding_size'],
                            ctx)
     else:
-        if args.model == 'gcn':
+        if hyperparams['model'] == 'gcn':
             model = GCN(g,
                         in_feats,
-                        args.n_hidden,
+                        hyperparams['n_hidden'],
                         n_classes,
-                        args.n_layers,
+                        hyperparams['n_layers'],
                         nd.relu,
-                        args.dropout)
-        elif args.model == 'graphsage':
+                        hyperparams['dropout'])
+        elif hyperparams['model'] == 'graphsage':
             model = GraphSAGE(g,
                               in_feats,
-                              args.n_hidden,
+                              hyperparams['n_hidden'],
                               n_classes,
-                              args.n_layers,
+                              hyperparams['n_hidden'],
                               nd.relu,
-                              args.dropout,
-                              args.aggregator_type)
+                              hyperparams['dropout'],
+                              hyperparams['aggregator_type'])
         else:
-            heads = ([args.num_heads] * args.n_layers) + [args.num_out_heads]
+            heads = ([hyperparams['num_heads']] * hyperparams['n_layers']) + [hyperparams['num_out_heads']]
             model = GAT(g,
                         in_feats,
-                        args.n_hidden,
+                        hyperparams['n_hidden'],
                         n_classes,
-                        args.n_layers,
+                        hyperparams['n_layers'],
                         heads,
                         gluon.nn.Lambda(lambda data: nd.LeakyReLU(data, act_type='elu')),
-                        args.dropout,
-                        args.attn_drop,
-                        args.alpha,
-                        args.residual)
+                        hyperparams['dropout'],
+                        hyperparams['attn_drop'],
+                        hyperparams['alpha'],
+                        hyperparams['residual'])
 
-    if args.no_features:
-        model = NodeEmbeddingGNN(model, features.shape[0], args.embedding_size)
+    if hyperparams['no_features']:
+        model = NodeEmbeddingGNN(model, in_feats, hyperparams['embedding_size'])
 
-    if load_stored:
-        model.load_parameters(os.path.join(args.model_dir, 'model.params'))
+    if model_dir:
+        model.load_parameters(os.path.join(model_dir, 'model.params'))
     else:
         model.initialize(ctx=ctx)
 
@@ -271,7 +268,7 @@ if __name__ == '__main__':
 
     args.edges = args.edges.split(",")
 
-    g, features, id_to_node = construct_graph()
+    g, features, id_to_node = construct_graph(args.training_dir, args.edges, args.nodes, args.heterogeneous)
 
     logging.info("Getting labels")
     labels, train_mask, test_mask = get_labels(id_to_node,
@@ -306,7 +303,9 @@ if __name__ == '__main__':
         ctx = mx.cpu(0)
 
     logging.info("Initializing Model")
-    model = get_model(args)
+    in_feats = args.embedding_size if args.no_features else features.shape[1]
+    n_classes = 2
+    model = get_model(g, vars(args), in_feats, n_classes, ctx)
     logging.info("Initialized Model")
 
     if args.no_features:
@@ -335,7 +334,7 @@ if __name__ == '__main__':
     else:
         train_g, test_g = FullGraphSampler(g, args.n_layers), FullGraphSampler(g, args.n_layers)
 
-    train_data, test_data = get_dataloader(features)
+    train_data, test_data = get_dataloader(features.shape[0], args.batch_size, args.mini_batch)
 
     loss = gluon.loss.SoftmaxCELoss()
     scale_pos_weight = ((train_mask.shape[0] - train_mask.sum()) / train_mask.sum())
@@ -345,4 +344,13 @@ if __name__ == '__main__':
     trainer = gluon.Trainer(model.collect_params(), args.optimizer, {'learning_rate': args.lr, 'wd': args.weight_decay})
 
     logging.info("Starting Model training")
-    train(model, trainer, loss, features, labels, train_data, test_data, train_g, test_g, train_mask, test_mask)
+    model, pred, pred_proba = train(model, trainer, loss, features, labels, train_data, test_data, train_g, test_g,
+                                    train_mask, test_mask, ctx, args.n_epochs, args.batch_size, args.output_dir,
+                                    args.threshold, scale_pos_weight, args.compute_metrics, args.mini_batch)
+    logging.info("Finished Model training")
+
+    logging.info("Saving model")
+    save_model(g, model, args.model_dir, vars(args))
+
+    logging.info("Saving model predictions for new accounts")
+    save_prediction(pred, pred_proba, id_to_node, args.training_dir, args.new_accounts, args.output_dir, args.predictions)

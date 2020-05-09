@@ -57,7 +57,7 @@ class HeteroRGCN(gluon.Block):
                 self.layers.add(HeteroRGCNLayer(hidden_size, hidden_size, g.etypes))
             # output layer
             # self.layers.add(HeteroRGCNLayer(hidden_size, out_size, g.etypes))
-            self.layers.add(gluon.nn.Dense(out_size, 'relu'))
+            self.layers.add(gluon.nn.Dense(out_size))
 
     def forward(self, g, features):
         # get embeddings for all node types. for user node type, use passed in user features
