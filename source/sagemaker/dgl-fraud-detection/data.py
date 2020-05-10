@@ -1,4 +1,86 @@
 import numpy as np
+import pandas as pd
+
+
+def get_features(id_to_node, node_features):
+    """
+
+    :param id_to_node: dictionary mapping node names(id) to dgl node idx
+    :param node_features: path to file containing node features
+    :return: (np.ndarray, list) node feature matrix in order and new nodes not yet in the graph
+    """
+    indices, features, new_nodes = [], [], []
+    max_node = max(id_to_node.values())
+    with open(node_features, "r") as fh:
+        for line in fh:
+            node_feats = line.strip().split(",")
+            node_id = node_feats[0]
+            feats = np.array(list(map(float, node_feats[1:])))
+            features.append(feats)
+            if node_id not in id_to_node:
+                max_node += 1
+                id_to_node[node_id] = max_node
+                new_nodes.append(max_node)
+
+            indices.append(id_to_node[node_id])
+
+    features = np.array(features).astype('float32')
+    features = features[np.argsort(indices), :]
+    return features, new_nodes
+
+
+def get_labels(id_to_node, num_nodes, labels_path, masked_nodes_path, additional_mask_rate=0):
+    """
+
+    :param id_to_node: dictionary mapping node names(id) to dgl node idx
+    :param num_nodes: number of user nodes in the graph
+    :param labels_path: filepath containing labelled nodes
+    :param masked_nodes_path: filepath containing list of nodes to be masked
+    :param additional_mask_rate: additional_mask_rate: float for additional masking of nodes with labels during training
+    :return: (list, list) train and test mask array
+    """
+    node_to_id = {v: k for k, v in id_to_node.items()}
+    user_to_label = pd.read_csv(labels_path).set_index('userId')
+    labels = user_to_label.loc[map(int, pd.Series(node_to_id)[np.arange(num_nodes)].values)].label.values
+    masked_nodes = read_masked_nodes(masked_nodes_path)
+    train_mask, test_mask = _get_mask(id_to_node, node_to_id,  num_nodes, masked_nodes,
+                                      additional_mask_rate=additional_mask_rate)
+    return labels, train_mask, test_mask
+
+
+def read_masked_nodes(masked_nodes_path):
+    """
+    Returns a list of nodes extracted from the path passed in
+
+    :param masked_nodes_path: filepath containing list of nodes to be masked i.e test users
+    :return: list
+    """
+    with open(masked_nodes_path, "r") as fh:
+        masked_nodes = [line.strip() for line in fh]
+    return masked_nodes
+
+
+def _get_mask(id_to_node, node_to_id, num_nodes, masked_nodes, additional_mask_rate):
+    """
+    Returns the train and test mask arrays
+
+    :param id_to_node: dictionary mapping node names(id) to dgl node idx
+    :param node_to_id: dictionary mapping dgl node idx to node names(id)
+    :param num_nodes: number of user/account nodes in the graph
+    :param masked_nodes: list of nodes to be masked during training, nodes without labels
+    :param additional_mask_rate: float for additional masking of nodes with labels during training
+    :return: (list, list) train and test mask array
+    """
+    train_mask = np.ones(num_nodes)
+    test_mask = np.zeros(num_nodes)
+    for node_id in masked_nodes:
+        train_mask[id_to_node[node_id]] = 0
+        test_mask[id_to_node[node_id]] = 1
+    if additional_mask_rate and additional_mask_rate < 1:
+        unmasked = np.array([idx for idx in range(num_nodes) if node_to_id[idx] not in masked_nodes])
+        yet_unmasked = np.random.permutation(unmasked)[:int(additional_mask_rate*num_nodes)]
+        train_mask[yet_unmasked] = 0
+    return train_mask, test_mask
 
 
 def _get_node_idx(id_to_node, node_type, node_id, ptr):

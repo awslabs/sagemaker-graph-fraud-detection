@@ -181,6 +181,23 @@ def evaluate(model, g, features, labels, mask, ctx, batch_size, mini_batch=True)
     return f1.get()[1]
 
 
+def get_model_predictions(model, g, dataloader, features, ctx):
+    pred = []
+    for batch in dataloader:
+        node_flow, batch_nids = g.sample_block(batch)
+        pred.append(model(node_flow, features[batch_nids.as_in_context(ctx)]))
+        nd.waitall()
+    return nd.concat(*pred, dim=0)
+
+
+def get_model_class_predictions(model, g, datalaoder, features, ctx, threshold=None):
+    unnormalized_preds = get_model_predictions(model, g, datalaoder, features, ctx)
+    pred_proba = nd.softmax(unnormalized_preds)[:, 1].asnumpy().flatten()
+    if not threshold:
+        return unnormalized_preds.argmax(axis=1).asnumpy().flatten().astype(int), pred_proba
+    return np.where(pred_proba > threshold, 1, 0), pred_proba
+
+
 def save_prediction(pred, pred_proba, id_to_node, training_dir, new_accounts, output_dir, predictions_file):
     prediction_query = read_masked_nodes(os.path.join(training_dir, new_accounts))
     pred_indices = np.array([id_to_node[query] for query in prediction_query])
