@@ -1,4 +1,3 @@
-from mxnet import nd
 import dgl
 
 
@@ -23,7 +22,7 @@ class HeteroGraphNeighborSampler:
 
     def sample_block(self, seeds):
         blocks = []
-        seeds = {self.category: nd.array(seeds).astype('int64')}
+        seeds = {self.category: seeds}
         cur = seeds
         for fanout in self.fanouts:
             if fanout is None:
@@ -59,7 +58,7 @@ class NeighborSampler:
     def sample_block(self, seeds):
         node_flow = next(dgl.contrib.sampling.NeighborSampler(self.g, len(seeds), self.fanout, num_hops=self.nhops,
                                                               neighbor_type='in',
-                                                              seed_nodes=nd.array(seeds).astype('int64')))
+                                                              seed_nodes=seeds))
         node_flow.copy_from_parent()
         return node_flow.blocks, node_flow.ndata[dgl.NID]
 
@@ -79,4 +78,4 @@ class FullGraphSampler:
         self.nhops = nhops
 
     def sample_block(self, seeds):
-        return [self.g] * self.nhops, nd.array(seeds).astype('int64')
+        return [self.g] * self.nhops, seeds

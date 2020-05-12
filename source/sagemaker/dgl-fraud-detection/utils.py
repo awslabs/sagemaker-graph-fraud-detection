@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
-from sklearn.metrics import roc_curve, auc
+from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
 import networkx as nx
 import matplotlib.pyplot as plt
 
@@ -25,12 +25,17 @@ def get_metrics(pred, pred_proba, labels, mask, out_dir):
                                     columns=["labels positive", "labels negative"],
                                     index=["predicted positive", "predicted negative"])
 
+    ap = average_precision_score(labels, pred_proba)
+
     fpr, tpr, _ = roc_curve(labels, pred_proba)
+    prc, rec, _ = precision_recall_curve(labels, pred_proba)
     roc_auc = auc(fpr, tpr)
+    pr_auc = auc(rec, prc)
 
     save_roc_curve(fpr, tpr, roc_auc, os.path.join(out_dir, "roc_curve.png"))
+    save_pr_curve(prc, rec, pr_auc, ap, os.path.join(out_dir, "pr_curve.png"))
 
-    return acc, f1, precision, recall, roc_auc, confusion_matrix
+    return acc, f1, precision, recall, roc_auc, pr_auc, ap, confusion_matrix
 
 
 def save_roc_curve(fpr, tpr, roc_auc, location):
@@ -44,6 +49,20 @@ def save_roc_curve(fpr, tpr, roc_auc, location):
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
     plt.title('Model ROC curve')
+    plt.legend(loc="lower right")
+    f.savefig(location)
+
+
+def save_pr_curve(fpr, tpr, pr_auc, ap, location):
+    f = plt.figure()
+    lw = 2
+    plt.plot(fpr, tpr, color='darkorange',
+             lw=lw, label='PR curve (area = %0.2f)' % pr_auc)
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.title('Model PR curve: AP={0:0.2f}'.format(ap))
     plt.legend(loc="lower right")
     f.savefig(location)
 

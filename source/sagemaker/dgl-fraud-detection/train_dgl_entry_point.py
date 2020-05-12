@@ -133,7 +133,7 @@ def train(model, trainer, loss, features, labels, train_loader, test_loader, tra
 
         for n, batch in enumerate(train_loader):
             # logging.info("Iteration: {:05d}".format(n))
-            node_flow, batch_nids = train_g.sample_block(batch)
+            node_flow, batch_nids = train_g.sample_block(nd.array(batch).astype('int64'))
             batch_indices = nd.array(batch, ctx=ctx)
             with autograd.record():
                 pred = model(node_flow, features[batch_nids.as_in_context(ctx)])
@@ -154,12 +154,12 @@ def train(model, trainer, loss, features, labels, train_loader, test_loader, tra
     class_preds, pred_proba = get_model_class_predictions(model, test_g, test_loader, features, ctx, threshold=thresh)
 
     if compute_metrics:
-        acc, f1, p, r, roc, cm = get_metrics(class_preds, pred_proba, labels, test_mask, output_dir)
+        acc, f1, p, r, roc, pr, ap, cm = get_metrics(class_preds, pred_proba, labels, test_mask, output_dir)
         logging.info("Metrics")
         logging.info("""Confusion Matrix: 
                         {}
-                        f1: {:.4f}, precision: {:.4f}, recall: {:.4f}, acc: {:.4f}, roc: {:.4f}
-                     """.format(cm, f1, p, r, acc, roc))
+                        f1: {:.4f}, precision: {:.4f}, recall: {:.4f}, acc: {:.4f}, roc: {:.4f}, pr: {:.4f}, ap: {:.4f}
+                     """.format(cm, f1, p, r, acc, roc, pr, ap))
 
     return model, class_preds, pred_proba
 
@@ -170,7 +170,7 @@ def evaluate(model, g, features, labels, mask, ctx, batch_size, mini_batch=True)
     batch_size = batch_size if mini_batch else features.shape[0]
     dataloader = gluon.data.BatchSampler(gluon.data.SequentialSampler(features.shape[0]),  batch_size, 'keep')
     for batch in dataloader:
-        node_flow, batch_nids = g.sample_block(batch)
+        node_flow, batch_nids = g.sample_block(nd.array(batch).astype('int64'))
         preds.append(model(node_flow, features[batch_nids.as_in_context(ctx)]))
         nd.waitall()
 
@@ -184,7 +184,7 @@ def evaluate(model, g, features, labels, mask, ctx, batch_size, mini_batch=True)
 def get_model_predictions(model, g, dataloader, features, ctx):
     pred = []
     for batch in dataloader:
-        node_flow, batch_nids = g.sample_block(batch)
+        node_flow, batch_nids = g.sample_block(nd.array(batch).astype('int64'))
         pred.append(model(node_flow, features[batch_nids.as_in_context(ctx)]))
         nd.waitall()
     return nd.concat(*pred, dim=0)
