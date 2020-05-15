@@ -7,107 +7,16 @@ import dgl
 import numpy as np
 import pandas as pd
 
-import argparse
 import time
 import logging
 import pickle
 
+from estimator_fns import *
+from graph import *
 from data import *
 from utils import *
-from model import *
+from model.mxnet import *
 from sampler import *
-
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--training-dir', type=str, default=os.environ['SM_CHANNEL_TRAIN'])
-    parser.add_argument('--model-dir', type=str, default=os.environ['SM_MODEL_DIR'])
-    parser.add_argument('--output-dir', type=str, default=os.environ['SM_OUTPUT_DATA_DIR'])
-    parser.add_argument('--nodes', type=str, default='user_features.csv')
-    parser.add_argument('--edges', type=str, default='homogeneous_user_edgelist.csv')
-    parser.add_argument('--heterogeneous', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
-                        default=True, help='use hetero graph')
-    parser.add_argument('--no-features', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
-                        default=False, help='do not use node features')
-    parser.add_argument('--mini-batch', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
-                        default=True, help='use mini-batch training and sample graph')
-    parser.add_argument('--labels', type=str, default='tags.csv')
-    parser.add_argument('--new-accounts', type=str, default='test_users.csv')
-    parser.add_argument('--predictions', type=str, default='preds.csv', help='file to save predictions on new-accounts')
-    parser.add_argument('--compute-metrics', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
-                        default=True, help='compute evaluation metrics after training')
-    parser.add_argument('--threshold', type=float, default=0, help='threshold for making predictions, default : argmax')
-    parser.add_argument('--model', type=str, default='rgcn', help='gnn to use. options: gcn, graphsage, gat, gem')
-    parser.add_argument('--num-gpus', type=int, default=1)
-    parser.add_argument('--batch-size', type=int, default=500)
-    parser.add_argument('--optimizer', type=str, default='adam')
-    parser.add_argument('--lr', type=float, default=1e-2)
-    parser.add_argument('--n-epochs', type=int, default=20)
-    parser.add_argument('--n-neighbors', type=int, default=10, help='number of neighbors to sample')
-    parser.add_argument('--n-hidden', type=int, default=16, help='number of hidden units')
-    parser.add_argument('--n-layers', type=int, default=3, help='number of hidden layers')
-    parser.add_argument('--weight-decay', type=float, default=5e-4, help='Weight for L2 loss')
-    parser.add_argument('--dropout', type=float, default=0.2, help='dropout probability, for gat only features')
-    parser.add_argument('--attn-drop', type=float, default=0.6, help='attention dropout for gat/gem')
-    parser.add_argument('--num-heads', type=int, default=4, help='number of hidden attention heads for gat/gem')
-    parser.add_argument('--num-out-heads', type=int, default=1, help='number of output attention heads for gat/gem')
-    parser.add_argument('--residual', action="store_true", default=False, help='use residual connection for gat')
-    parser.add_argument('--alpha', type=float, default=0.2, help='the negative slop of leaky relu')
-    parser.add_argument('--aggregator-type', type=str, default="gcn", help="graphsage aggregator: mean/gcn/pool/lstm")
-    parser.add_argument('--embedding-size', type=int, default=360, help="embedding size for node embedding")
-
-    return parser.parse_args()
-
-
-def get_logger(name):
-    logger = logging.getLogger(name)
-    log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-    logging.basicConfig(format=log_format, level=logging.INFO)
-    return logger
-
-
-def construct_graph(training_dir, edges, nodes, heterogeneous=True):
-    if heterogeneous:
-        logging.info("Getting relation graphs from the following edge lists : {} ".format(edges))
-        edgelists, id_to_node = {}, {}
-        for i, edge in enumerate(edges):
-            edgelist, id_to_node, src, dst = parse_edgelist(os.path.join(training_dir, edge), id_to_node, header=False)
-            edgelists[(src, 'relation{}'.format(i), dst)] = edgelist
-            logging.info("Read edges for relation{} from edgelist: {}".format(i, os.path.join(training_dir, edge)))
-
-            # reverse edge list so that relation is undirected
-            # edgelists[(dst, 'reverse_relation{}'.format(i), src)] = [(b, a) for a, b in edgelist]
-
-        # get features for nodes
-        features, new_nodes = get_features(id_to_node['user'], os.path.join(training_dir, nodes))
-        logging.info("Read in user features for user nodes")
-        # handle user nodes that have features but don't have any connections
-        if new_nodes:
-            edgelists[('user', 'relation'.format(i+1), 'none')] = [(node, 0) for node in new_nodes]
-            edgelists[('none', 'reverse_relation{}'.format(i + 1), 'user')] = [(0, node) for node in new_nodes]
-
-        g = dgl.heterograph(edgelists)
-        logging.info(
-            "Constructed heterograph with the following metagraph structure: Node types {}, Edge types{}".format(
-                g.ntypes, g.canonical_etypes))
-        logging.info("Number of nodes of type user : {}".format(g.number_of_nodes('user')))
-
-        features = nd.array(features)
-        g.nodes['user'].data['features'] = features
-
-        id_to_node = id_to_node['user']
-
-    else:
-        g = dgl.DGLGraph()
-        g, id_to_node = from_csv(g, os.path.join(training_dir, edges[0]), os.path.join(training_dir, nodes))
-
-        logging.info('read graph from node list and edge list')
-
-        features = normalize(g.ndata['features'])
-        g.ndata['features'] = features
-
-    return g, features, id_to_node
 
 
 def normalize(feature_matrix):
@@ -148,8 +57,8 @@ def train(model, trainer, loss, features, labels, train_loader, test_loader, tra
 
         duration.append(time.time() - tic)
         metric = evaluate(model, train_g, features, labels, train_mask, ctx, batch_size, mini_batch)
-        logging.info("Epoch {:05d} | Time(s) {:.4f} | Loss {:.4f} | F1 {:.4f} | ETputs(KTEPS) {:.2f}".format(
-                epoch, np.mean(duration), loss_val/(n+1), metric, n_edges / np.mean(duration) / 1000))
+        logging.info("Epoch {:05d} | Time(s) {:.4f} | Loss {:.4f} | F1 {:.4f}".format(
+                epoch, np.mean(duration), loss_val/(n+1), metric))
 
     class_preds, pred_proba = get_model_class_predictions(model, test_g, test_loader, features, ctx, threshold=thresh)
 
@@ -286,6 +195,11 @@ if __name__ == '__main__':
     args.edges = args.edges.split(",")
 
     g, features, id_to_node = construct_graph(args.training_dir, args.edges, args.nodes, args.heterogeneous)
+    features = nd.array(features)
+    if args.heterogeneous:
+        g.nodes['user'].data['features'] = features
+    else:
+        g.ndata['features'] = features
 
     logging.info("Getting labels")
     labels, train_mask, test_mask = get_labels(id_to_node,

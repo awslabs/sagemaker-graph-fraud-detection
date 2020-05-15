@@ -29,7 +29,7 @@ class HeteroRGCNLayer(gluon.Block):
         # The first argument is the message passing functions for each relation.
         # The second one is the type wise reducer, could be "sum", "max",
         # "min", "mean", "stack"
-        G.multi_update_all(funcs, 'sum')
+        G.multi_update_all(funcs, 'mean')
         # return the updated node feature dictionary
         return {ntype: G.dstnodes[ntype].data['h'] for ntype in G.ntypes if 'h' in G.dstnodes[ntype].data}
 
