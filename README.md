@@ -56,11 +56,16 @@ The project architecture deployed by the cloud formation template is shown here.
         * `build_and_push.sh`: Script to build Docker image and push to Amazon ECR
       * `graph_data_preprocessor.py`: Custom script used by SageMaker Processing for data processing/feature engineering
     * `dgl-fraud-detection/`
-      * `data.py`: Contains functions for reading node features and edgelists into DGL Graphs
-      * `model.py`: Implements the various graph neural network models used in the project
+      * `model`
+        *  `__init__.py`: treat containing model directory as a package
+        *  `mxnet.py`: Implements the various graph neural network models used in the project with the mxnet backend
+      * `data.py`: Contains functions for reading node features and labels
+      * `estimator_fns.py`: Contains functions for parsing input from SageMaker estimator objects
+      * `graph.py`: Contains functions for constructing DGL Graphs with node features and edge lists
       * `requirements.txt`: Describes Python package requirements of the Amazon SageMaker training instance
       * `sampler.py`: Contains functions for graph sampling for mini-batch training
-      * `train_dgl_entry_point.py`: python entry point used by the SageMaker DGL notebook for GNN training
+      * `train_dgl_mxnet_entry_point.py`: python entry point used by the notebook for GNN training with DGL mxnet backend
+      * `utils.py`: python script with utility functions for computing metrics and plots
     * `dgl-fraud-detection.ipynb`: Orchestrates the solution. Triggers preprocessing and model training
 
 ## License
