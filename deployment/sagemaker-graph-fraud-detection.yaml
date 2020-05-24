@@ -253,13 +253,12 @@ Resources:
   LifeCycleConfig:
     Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
     Properties:
-      OnStart:
+      OnCreate:
         - Content:
             Fn::Base64:
               !Join
               - ";"
               - - cd /home/ec2-user/SageMaker
-                - chown -R ec2-user:ec2-user *
                 - !Join
                   - ""
                   - - aws s3 sync s3://
@@ -270,6 +269,7 @@ Resources:
                 - !Sub "sed -i 's/SAGEMAKER_S3_BUCKET/${SolutionS3BucketName}/g' dgl-fraud-detection.ipynb"
                 - !Sub "sed -i 's/SAGEMAKER_PROCESSING_INSTANCE_TYPE/${SageMakerProcessingJobInstanceType}/g' dgl-fraud-detection.ipynb"
                 - !Sub "sed -i 's/SAGEMAKER_TRAINING_INSTANCE_TYPE/${SageMakerTrainingJobInstanceType}/g' dgl-fraud-detection.ipynb"
+                - sudo chown -R ec2-user:ec2-user .
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
