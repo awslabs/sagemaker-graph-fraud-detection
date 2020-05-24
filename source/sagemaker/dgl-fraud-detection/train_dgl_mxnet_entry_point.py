@@ -18,7 +18,6 @@ from utils import *
 from model.mxnet import *
 from sampler import *
 
-
 def normalize(feature_matrix):
     mean = nd.mean(feature_matrix, axis=0)
     stdev = nd.sqrt(nd.sum((feature_matrix - mean)**2, axis=0)/feature_matrix.shape[0])
@@ -155,7 +154,7 @@ def get_model(g, hyperparams, in_feats, n_classes, ctx, model_dir=None):
                               in_feats,
                               hyperparams['n_hidden'],
                               n_classes,
-                              hyperparams['n_hidden'],
+                              hyperparams['n_layers'],
                               nd.relu,
                               hyperparams['dropout'],
                               hyperparams['aggregator_type'])
@@ -195,6 +194,7 @@ if __name__ == '__main__':
     args.edges = args.edges.split(",")
 
     g, features, id_to_node = construct_graph(args.training_dir, args.edges, args.nodes, args.heterogeneous)
+
     features = nd.array(features)
     if args.heterogeneous:
         g.nodes['user'].data['features'] = features
@@ -202,8 +202,9 @@ if __name__ == '__main__':
         g.ndata['features'] = features
 
     logging.info("Getting labels")
+    n_nodes = g.number_of_nodes('user') if args.heterogeneous else g.number_of_nodes()
     labels, train_mask, test_mask = get_labels(id_to_node,
-                                               g.number_of_nodes('user'),
+                                               n_nodes,
                                                os.path.join(args.training_dir, args.labels),
                                                os.path.join(args.training_dir, args.new_accounts))
     logging.info("Got labels")

@@ -121,7 +121,7 @@ class GCN(gluon.Block):
         for i, layer in enumerate(self.layers[:-1]):
             if i != 0:
                 h = self.dropout(h)
-            h = layer(g, h)
+            h = layer(g[i], h)
         return self.layers[-1](h)
 
 
@@ -150,8 +150,9 @@ class GraphSAGE(gluon.Block):
 
     def forward(self, g, features):
         h = features
-        for layer in self.layers[:-1]:
-            h = layer(g, h)
+        for i, layer in enumerate(self.layers[:-1]):
+            h_dst = h[:g[i].number_of_dst_nodes()]
+            h = layer(g[i], (h, h_dst))
         return self.layers[-1](h)
 
 
@@ -175,26 +176,26 @@ class GAT(gluon.Block):
         self.activation = activation
         # input projection (no residual)
         self.gat_layers.append(GATConv(
-            in_dim, num_hidden, heads[0],
+            (in_dim, in_dim), num_hidden, heads[0],
             feat_drop, attn_drop, alpha, False))
         # hidden layers
         for l in range(1, num_layers):
             # due to multi-head, the in_dim = num_hidden * num_heads
             self.gat_layers.append(GATConv(
-                num_hidden * heads[l-1], num_hidden, heads[l],
+                (num_hidden * heads[l-1], num_hidden * heads[l-1]), num_hidden, heads[l],
                 feat_drop, attn_drop, alpha, residual))
         # output projection
-        self.gat_layers.append(GATConv(
-            num_hidden * heads[-2], num_classes, heads[-1],
-            feat_drop, attn_drop, alpha, residual))
+        self.output_proj = gluon.nn.Dense(num_classes)
         for i, layer in enumerate(self.gat_layers):
             self.register_child(layer, "gat_layer_{}".format(i))
+        self.register_child(self.output_proj, "dense_layer")
 
     def forward(self, g, inputs):
         h = inputs
         for l in range(self.num_layers):
-            h = self.gat_layers[l](g, h).flatten()
+            h_dst = h[:g[l].number_of_dst_nodes()]
+            h = self.gat_layers[l](g[l], (h, h_dst)).flatten()
             h = self.activation(h)
         # output projection
-        logits = self.gat_layers[-1](g, h).mean(1)
+        logits = self.output_proj(h)
         return logits

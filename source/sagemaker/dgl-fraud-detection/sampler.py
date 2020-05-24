@@ -51,16 +51,24 @@ class NeighborSampler:
         """
     def __init__(self, g, nhops, fanout=None):
         self.g = g
-        self.g.readonly()
-        self.fanout = fanout if fanout is not None else g.in_degrees().max()
+        self.fanouts = [fanout] * nhops
         self.nhops = nhops
 
     def sample_block(self, seeds):
-        node_flow = next(dgl.contrib.sampling.NeighborSampler(self.g, len(seeds), self.fanout, num_hops=self.nhops,
-                                                              neighbor_type='in',
-                                                              seed_nodes=seeds))
-        node_flow.copy_from_parent()
-        return node_flow.blocks, node_flow.ndata[dgl.NID]
+        blocks = []
+        for fanout in self.fanouts:
+            # For each seed node, sample ``fanout`` neighbors.
+            if fanout is None:
+                frontier = dgl.in_subgraph(self.g, seeds)
+            else:
+                frontier = dgl.sampling.sample_neighbors(self.g, seeds, fanout, replace=False)
+            # Then we compact the frontier into a bipartite graph for message passing.
+            block = dgl.to_block(frontier, seeds)
+            # Obtain the seed nodes for next layer.
+            seeds = block.srcdata[dgl.NID]
+
+            blocks.insert(0, block)
+        return blocks, blocks[0].srcdata[dgl.NID]
 
 
 class FullGraphSampler:

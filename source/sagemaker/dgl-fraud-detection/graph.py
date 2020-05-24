@@ -40,11 +40,18 @@ def construct_graph(training_dir, edges, nodes, heterogeneous=True):
         id_to_node = id_to_node['user']
 
     else:
-        g = dgl.DGLGraph()
-        g, id_to_node = from_csv(g, os.path.join(training_dir, edges[0]), os.path.join(training_dir, nodes))
+        sources, sinks, features, id_to_node = read_edges(os.path.join(training_dir, edges[0]),
+                                                          os.path.join(training_dir, nodes))
 
         # add self relation
-        g.add_edges_from(zip(g.nodes(), g.nodes()))
+        all_nodes = sorted(id_to_node.values())
+        sources.extend(all_nodes)
+        sinks.extend(all_nodes)
+
+        g = dgl.graph((sources, sinks))
+
+        if features:
+            g.ndata['features'] = np.array(features).astype('float32')
 
         logging.info('read graph from node list and edge list')
 

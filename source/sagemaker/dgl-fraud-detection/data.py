@@ -135,14 +135,13 @@ def parse_edgelist(edges, id_to_node, header=False, source_type='user', sink_typ
     return edge_list, id_to_node, source_type, sink_type
 
 
-def from_csv(g, edges, nodes=None):
+def read_edges(edges, nodes=None):
     """
-    Add nodes and edges to an empty DGL Graph from paths to node features and edge list
+    Read edges and node features
 
-    :param g: empty DGL graph
     :param edges: path to comma separated file containing all edges
     :param nodes: path to comma separated file containing all nodes + features
-    :return: (G, dict) passed in DGL graph with nodes and edges added, id_to_node dictionary containing mappings
+    :return: (list, list, list, dict) sources, sinks, features and id_to_node dictionary containing mappings
     from node names(id) to dgl node indices
     """
     node_pointer = 0
@@ -178,8 +177,4 @@ def from_csv(g, edges, nodes=None):
                 sources.append(id_to_node[source])
                 sinks.append(id_to_node[sink])
 
-    g.add_nodes(node_pointer)
-    g.add_edges(sources, sinks)
-    if features:
-        g.ndata['features'] = np.array(features).astype('float32')
-    return g, id_to_node
+    return sources, sinks, features, id_to_node
