@@ -1,3 +1,2 @@
-dgl-cu100==0.4.3
-mxnet-cu100==1.5.1
+dgl-cu101==0.4.3
 matplotlib==3.0.3

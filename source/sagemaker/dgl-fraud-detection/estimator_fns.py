@@ -10,7 +10,7 @@ def parse_args():
     parser.add_argument('--model-dir', type=str, default=os.environ['SM_MODEL_DIR'])
     parser.add_argument('--output-dir', type=str, default=os.environ['SM_OUTPUT_DATA_DIR'])
     parser.add_argument('--nodes', type=str, default='user_features.csv')
-    parser.add_argument('--edges', type=str, default='homogeneous_user_edgelist.csv')
+    parser.add_argument('--edges', type=str, default='homogeneous_edgelist.csv')
     parser.add_argument('--heterogeneous', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
                         default=True, help='use hetero graph')
     parser.add_argument('--no-features', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
@@ -49,4 +49,5 @@ def get_logger(name):
     logger = logging.getLogger(name)
     log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
     logging.basicConfig(format=log_format, level=logging.INFO)
+    logger.setLevel(logging.INFO)
     return logger

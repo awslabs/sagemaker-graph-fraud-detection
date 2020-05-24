@@ -61,7 +61,7 @@ def run_modelling_job(timestamp, train_input):
         'sagemaker_container_log_level': str(20),
         'sagemaker_enable_cloudwatch_metrics': 'false',
         'sagemaker_job_name': training_job_name,
-        'sagemaker_program': "train_dgl_entry_point.py",
+        'sagemaker_program': "train_dgl_mxnet_entry_point.py",
         'sagemaker_region': region,
         'sagemaker_submit_directory': code_path
     }
