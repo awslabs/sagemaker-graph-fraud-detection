@@ -29,7 +29,7 @@ class HeteroRGCNLayer(gluon.Block):
         # The first argument is the message passing functions for each relation.
         # The second one is the type wise reducer, could be "sum", "max",
         # "min", "mean", "stack"
-        G.multi_update_all(funcs, 'mean')
+        G.multi_update_all(funcs, 'sum')
         # return the updated node feature dictionary
         return {ntype: G.dstnodes[ntype].data['h'] for ntype in G.ntypes if 'h' in G.dstnodes[ntype].data}
 
@@ -40,10 +40,10 @@ class HeteroRGCN(gluon.Block):
         self.g = g
         self.ctx = ctx
 
-        # Use trainable node embeddings as featureless inputs for all non user node types.
+        # Use trainable node embeddings as featureless inputs for all non target node types.
         with self.name_scope():
             self.embed_dict = {ntype: gluon.nn.Embedding(g.number_of_nodes(ntype), embedding_size)
-                               for ntype in g.ntypes if ntype != 'user'}
+                               for ntype in g.ntypes if ntype != 'target'}
 
             for child in self.embed_dict.values():
                 self.register_child(child)
@@ -60,8 +60,8 @@ class HeteroRGCN(gluon.Block):
             self.layers.add(gluon.nn.Dense(out_size))
 
     def forward(self, g, features):
-        # get embeddings for all node types. for user node type, use passed in user features
-        h_dict = {'user': features}
+        # get embeddings for all node types. for target node type, use passed in target features
+        h_dict = {'target': features}
         for ntype in self.embed_dict:
             if g[0].number_of_nodes(ntype) > 0:
                 h_dict[ntype] = self.embed_dict[ntype](nd.array(g[0].nodes(ntype), self.ctx))
@@ -72,9 +72,9 @@ class HeteroRGCN(gluon.Block):
                 h_dict = {k: nd.LeakyReLU(h) for k, h in h_dict.items()}
             h_dict = layer(g[i], h_dict)
 
-        # get user logits
-        # return h_dict['user']
-        return self.layers[-1](h_dict['user'])
+        # get target logits
+        # return h_dict['target']
+        return self.layers[-1](h_dict['target'])
 
 
 class NodeEmbeddingGNN(gluon.Block):

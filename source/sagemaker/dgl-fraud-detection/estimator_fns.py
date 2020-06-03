@@ -9,7 +9,8 @@ def parse_args():
     parser.add_argument('--training-dir', type=str, default=os.environ['SM_CHANNEL_TRAIN'])
     parser.add_argument('--model-dir', type=str, default=os.environ['SM_MODEL_DIR'])
     parser.add_argument('--output-dir', type=str, default=os.environ['SM_OUTPUT_DATA_DIR'])
-    parser.add_argument('--nodes', type=str, default='user_features.csv')
+    parser.add_argument('--nodes', type=str, default='features.csv')
+    parser.add_argument('--target-ntype', type=str, default='TransactionID')
     parser.add_argument('--edges', type=str, default='homogeneous_edgelist.csv')
     parser.add_argument('--heterogeneous', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
                         default=True, help='use hetero graph')
@@ -18,7 +19,7 @@ def parse_args():
     parser.add_argument('--mini-batch', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
                         default=True, help='use mini-batch training and sample graph')
     parser.add_argument('--labels', type=str, default='tags.csv')
-    parser.add_argument('--new-accounts', type=str, default='test_users.csv')
+    parser.add_argument('--new-accounts', type=str, default='test.csv')
     parser.add_argument('--predictions', type=str, default='preds.csv', help='file to save predictions on new-accounts')
     parser.add_argument('--compute-metrics', type=lambda x: (str(x).lower() in ['true', '1', 'yes']),
                         default=True, help='compute evaluation metrics after training')

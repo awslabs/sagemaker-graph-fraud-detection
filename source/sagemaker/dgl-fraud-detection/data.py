@@ -29,21 +29,22 @@ def get_features(id_to_node, node_features):
     return features, new_nodes
 
 
-def get_labels(id_to_node, num_nodes, labels_path, masked_nodes_path, additional_mask_rate=0):
+def get_labels(id_to_node, n_nodes, target_node_type, labels_path, masked_nodes_path, additional_mask_rate=0):
     """
 
     :param id_to_node: dictionary mapping node names(id) to dgl node idx
-    :param num_nodes: number of user nodes in the graph
+    :param n_nodes: number of user nodes in the graph
+    :param target_node_type: column name for target node type
     :param labels_path: filepath containing labelled nodes
     :param masked_nodes_path: filepath containing list of nodes to be masked
     :param additional_mask_rate: additional_mask_rate: float for additional masking of nodes with labels during training
     :return: (list, list) train and test mask array
     """
     node_to_id = {v: k for k, v in id_to_node.items()}
-    user_to_label = pd.read_csv(labels_path).set_index('userId')
-    labels = user_to_label.loc[map(int, pd.Series(node_to_id)[np.arange(num_nodes)].values)].label.values
+    user_to_label = pd.read_csv(labels_path).set_index(target_node_type)
+    labels = user_to_label.loc[map(int, pd.Series(node_to_id)[np.arange(n_nodes)].values)].values.flatten()
     masked_nodes = read_masked_nodes(masked_nodes_path)
-    train_mask, test_mask = _get_mask(id_to_node, node_to_id,  num_nodes, masked_nodes,
+    train_mask, test_mask = _get_mask(id_to_node, node_to_id, n_nodes, masked_nodes,
                                       additional_mask_rate=additional_mask_rate)
     return labels, train_mask, test_mask
 

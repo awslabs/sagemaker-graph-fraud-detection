@@ -27,7 +27,7 @@ Parameters:
   SageMakerProcessingJobInstanceType:
     Description: Instance type of the SageMaker processing job
     Type: String
-    Default:  "ml.r5.24xlarge"
+    Default:  "ml.m4.xlarge"
   SageMakerTrainingJobInstanceType:
     Description: Instance type of the SageMaker processing job
     Type: String

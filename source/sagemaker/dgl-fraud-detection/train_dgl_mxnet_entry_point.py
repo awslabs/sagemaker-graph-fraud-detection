@@ -110,7 +110,7 @@ def save_prediction(pred, pred_proba, id_to_node, training_dir, new_accounts, ou
     prediction_query = read_masked_nodes(os.path.join(training_dir, new_accounts))
     pred_indices = np.array([id_to_node[query] for query in prediction_query])
 
-    pd.DataFrame.from_dict({'user': prediction_query,
+    pd.DataFrame.from_dict({'target': prediction_query,
                             'pred_proba': pred_proba[pred_indices],
                             'pred': pred[pred_indices]}).to_csv(os.path.join(output_dir, predictions_file),
                                                                 index=False)
@@ -193,18 +193,20 @@ if __name__ == '__main__':
 
     args.edges = args.edges.split(",")
 
-    g, features, id_to_node = construct_graph(args.training_dir, args.edges, args.nodes, args.heterogeneous)
+    g, features, id_to_node = construct_graph(args.training_dir, args.edges, args.nodes, args.target_ntype,
+                                              args.heterogeneous)
 
-    features = nd.array(features)
+    features = normalize(nd.array(features))
     if args.heterogeneous:
-        g.nodes['user'].data['features'] = features
+        g.nodes['target'].data['features'] = features
     else:
         g.ndata['features'] = features
 
     logging.info("Getting labels")
-    n_nodes = g.number_of_nodes('user') if args.heterogeneous else g.number_of_nodes()
+    n_nodes = g.number_of_nodes('target') if args.heterogeneous else g.number_of_nodes()
     labels, train_mask, test_mask = get_labels(id_to_node,
                                                n_nodes,
+                                               args.target_ntype,
                                                os.path.join(args.training_dir, args.labels),
                                                os.path.join(args.training_dir, args.new_accounts))
     logging.info("Got labels")
@@ -241,7 +243,7 @@ if __name__ == '__main__':
     logging.info("Initialized Model")
 
     if args.no_features:
-        features = nd.array(g.nodes('user'), ctx) if args.heterogeneous else nd.array(g.nodes(), ctx)
+        features = nd.array(g.nodes('target'), ctx) if args.heterogeneous else nd.array(g.nodes(), ctx)
     else:
         features = features.as_in_context(ctx)
 
@@ -258,10 +260,10 @@ if __name__ == '__main__':
         g.ndata['norm'] = mx.nd.expand_dims(norm, 1)
 
     if args.mini_batch:
-        train_g = HeteroGraphNeighborSampler(g, 'user', args.n_layers, args.n_neighbors) if args.heterogeneous\
+        train_g = HeteroGraphNeighborSampler(g, 'target', args.n_layers, args.n_neighbors) if args.heterogeneous\
             else NeighborSampler(g, args.n_layers, args.n_neighbors)
 
-        test_g = HeteroGraphNeighborSampler(g, 'user', args.n_layers) if args.heterogeneous\
+        test_g = HeteroGraphNeighborSampler(g, 'target', args.n_layers) if args.heterogeneous\
             else NeighborSampler(g, args.n_layers)
     else:
         train_g, test_g = FullGraphSampler(g, args.n_layers), FullGraphSampler(g, args.n_layers)
