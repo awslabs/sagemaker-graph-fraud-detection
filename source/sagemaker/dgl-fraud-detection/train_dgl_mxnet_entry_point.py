@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
     args = parse_args()
 
-    args.edges = args.edges.split(",")
+    args.edges = get_edgelists(args.edges, args.training_dir)
 
     g, features, id_to_node = construct_graph(args.training_dir, args.edges, args.nodes, args.target_ntype,
                                               args.heterogeneous)

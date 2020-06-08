@@ -1,9 +1,17 @@
 import os
+import re
 import dgl
 import numpy as np
 
 from data import *
 
+
+def get_edgelists(edgelist_expression, directory):
+    if "," in edgelist_expression:
+        return edgelist_expression.split(",")
+    files = os.listdir(directory)
+    compiled_expression = re.compile(edgelist_expression)
+    return [filename for filename in files if compiled_expression.match(filename)]
 
 def construct_graph(training_dir, edges, nodes, target_node_type, heterogeneous=True):
     if heterogeneous:
