@@ -1,9 +1,14 @@
 import os
 import boto3
+import json
 import tarfile
 from time import strftime, gmtime
 
 s3_client = boto3.client('s3')
+S3_BUCKET = os.environ['training_job_s3_bucket']
+OUTPUT_PREFIX = os.environ['training_job_output_s3_prefix']
+INSTANCE_TYPE = os.environ['training_job_instance_type']
+ROLE_ARN = os.environ['training_job_role_arn']
 
 
 def process_event(event, context):
@@ -35,7 +40,7 @@ def verify_modelling_inputs(event_source_s3):
     files = [content['Key'] for content in objects['Contents']]
     print("Contents of training data folder :")
     print("\n".join(files))
-    minimum_expected_files = ['user_features.csv', 'tags.csv']
+    minimum_expected_files = ['features.csv', 'tags.csv']
 
     if not all([file in [os.path.basename(s3_file) for s3_file in files] for file in minimum_expected_files]):
         return False, "Training data absent or incomplete in {}".format(full_s3_training_folder)
@@ -43,41 +48,60 @@ def verify_modelling_inputs(event_source_s3):
     return full_s3_training_folder, "Minimum files needed for training present in {}".format(full_s3_training_folder)
 
 
-def run_modelling_job(timestamp, train_input):
+def run_modelling_job(timestamp,
+                      train_input,
+                      s3_bucket=S3_BUCKET,
+                      train_out_prefix=OUTPUT_PREFIX,
+                      train_job_prefix='sagemaker-graph-fraud-model-training',
+                      train_source_dir='dgl-fraud-detection',
+                      train_entry_point='train_dgl_mxnet_entry_point.py',
+                      framework='mxnet',
+                      framework_version='1.6.0',
+                      xpu='gpu',
+                      python_version='py3',
+                      instance_type=INSTANCE_TYPE
+                      ):
     print("Creating SageMaker Training job with inputs from {}".format(train_input))
 
     sagemaker_client = boto3.client('sagemaker')
     region = boto3.session.Session().region_name
 
-    container = "520713654638.dkr.ecr.{}.amazonaws.com/sagemaker-mxnet:1.4.1-gpu-py3".format(region)
-    role = os.environ['training_job_role_arn']
+    container = "763104351884.dkr.ecr.{}.amazonaws.com/{}-training:{}-{}-{}".format(region,
+                                                                                    framework,
+                                                                                    framework_version,
+                                                                                    xpu,
+                                                                                    python_version)
 
-    training_job_name = "sagemaker-graph-fraud-model-training-{}".format(timestamp)
+    training_job_name = "{}-{}".format(train_job_prefix, timestamp)
 
-    code_path = tar_and_upload_to_s3('dgl-fraud-detection', os.path.join(os.environ['training_job_output_s3_prefix'],
-                                                                         training_job_name, 'source'))
+    code_path = tar_and_upload_to_s3(train_source_dir,
+                                     s3_bucket,
+                                     os.path.join(train_out_prefix, training_job_name, 'source'))
 
     framework_params = {
         'sagemaker_container_log_level': str(20),
         'sagemaker_enable_cloudwatch_metrics': 'false',
-        'sagemaker_job_name': training_job_name,
-        'sagemaker_program': "train_dgl_mxnet_entry_point.py",
-        'sagemaker_region': region,
-        'sagemaker_submit_directory': code_path
+        'sagemaker_job_name': json.dumps(training_job_name),
+        'sagemaker_program': json.dumps(train_entry_point),
+        'sagemaker_region': json.dumps(region),
+        'sagemaker_submit_directory': json.dumps(code_path)
     }
 
     model_params = {
-        'nodes': 'user_features.csv',
-        'edges': get_edgelist(train_input),
-        'labels': 'tags.csv',
-        'model': 'rgcn',
-        'num-gpus': str(1),
-        'embedding-size': str(64),
-        'n-layers': str(1),
-        'n-epochs': str(100),
-        'optimizer': 'adam',
-        'lr': str(1e-2)
+          'nodes': 'features.csv',
+          'edges': 'relation*',
+          'labels': 'tags.csv',
+          'model': 'rgcn',
+          'num-gpus': 1,
+          'batch-size': 10000,
+          'embedding-size': 64,
+          'n-neighbors': 1000,
+          'n-layers': 2,
+          'n-epochs': 10,
+          'optimizer': 'adam',
+          'lr': 1e-2
     }
+    model_params = {k: json.dumps(str(v)) for k, v in model_params.items()}
 
     model_params.update(framework_params)
 
@@ -88,15 +112,13 @@ def run_modelling_job(timestamp, train_input):
                 "TrainingImage": container,
                 "TrainingInputMode": "File"
             },
-            "RoleArn": role,
+            "RoleArn": ROLE_ARN,
             "OutputDataConfig": {
-                "S3OutputPath": get_full_s3_path(os.environ['training_job_s3_bucket'],
-                                                 os.path.join(os.environ['training_job_output_s3_prefix'],
-                                                              training_job_name, 'output'))
+                "S3OutputPath": get_full_s3_path(s3_bucket, train_out_prefix)
             },
             "ResourceConfig": {
                 "InstanceCount": 1,
-                "InstanceType": os.environ['training_job_instance_type'],
+                "InstanceType": instance_type,
                 "VolumeSizeInGB": 30
             },
             "HyperParameters": model_params,
@@ -121,24 +143,15 @@ def run_modelling_job(timestamp, train_input):
     return response
 
 
-def tar_and_upload_to_s3(source_file, s3_key):
-    filename = "/tmp/source.tar.gz"
+def tar_and_upload_to_s3(source, s3_bucket, s3_key):
+    filename = "/tmp/sourcedir.tar.gz"
     with tarfile.open(filename, mode="w:gz") as t:
-        t.add(source_file, arcname=os.path.basename(source_file))
+        for file in os.listdir(source):
+            t.add(os.path.join(source, file), arcname=file)
 
-    s3_client.upload_file(filename,
-                          os.environ['training_job_s3_bucket'],
-                          s3_key)
+    s3_client.upload_file(filename, s3_bucket, os.path.join(s3_key, 'sourcedir.tar.gz'))
 
-    return get_full_s3_path(os.environ['training_job_s3_bucket'], s3_key)
-
-
-def get_edgelist(training_folder):
-    training_folder = "/".join(training_folder.replace('s3://', '').split("/")[1:])
-    objects = s3_client.list_objects_v2(Bucket=os.environ['training_job_s3_bucket'], Prefix=training_folder)
-    files = [content['Key'] for content in objects['Contents']]
-    bipartite_edges = ",".join(map(lambda x: x.split("/")[-1], [file for file in files if "relation" in file]))
-    return bipartite_edges
+    return get_full_s3_path(s3_bucket, os.path.join(s3_key, 'sourcedir.tar.gz'))
 
 
 def get_full_s3_path(bucket, key):
@@ -147,4 +160,3 @@ def get_full_s3_path(bucket, key):
 
 def get_full_path(event_source_s3):
     return get_full_s3_path(event_source_s3['bucket']['name'], event_source_s3['object']['key'])
-
