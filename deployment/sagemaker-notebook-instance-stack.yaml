@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "(SA0002) - sagemaker-graph-fraud-detection SageMaker stack"
+Parameters:
+  SolutionS3BucketName:
+    Description: Enter the name of the S3 bucket for the solution
+    Type: String
+  SageMakerProcessingJobInstanceType:
+    Description: Instance type of the SageMaker processing job
+    Type: String
+    Default:  "ml.m4.xlarge"
+  SageMakerTrainingJobInstanceType:
+    Description: Instance type of the SageMaker processing job
+    Type: String
+    Default:  "ml.p3.2xlarge"
+  SageMakerNotebookInstanceType:
+    Description: Instance type of the SageMaker notebook instance
+    Type: String
+    Default:  "ml.t3.medium"
+  NotebookInstanceExecutionRoleArn:
+    Type: String
+    Description: Execution Role for the SageMaker notebook instance
+
+Mappings:
+  S3:
+    SolutionRef:
+      Bucket: "sagemaker-solutions"
+  SageMaker:
+    Source:
+      S3Key: "Fraud-detection-in-financial-networks/source/sagemaker/"
+
+Resources:
+  NotebookInstance:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties:
+      DirectInternetAccess: Enabled
+      InstanceType: !Ref SageMakerNotebookInstanceType
+      LifecycleConfigName: !GetAtt LifeCycleConfig.NotebookInstanceLifecycleConfigName
+      NotebookInstanceName: GraphFraudDetection
+      RoleArn: !Ref NotebookInstanceExecutionRoleArn
+      VolumeSizeInGB: 120
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W1201
+            reason: Solution does not have KMS encryption enabled by default
+  LifeCycleConfig:
+    Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
+    Properties:
+      OnCreate:
+        - Content:
+            Fn::Base64: !Sub
+            - |
+              cd /home/ec2-user/SageMaker
+              aws s3 sync s3://${SolutionsRefBucketBase}-${Region}/${SolutionsRefSource} .
+              sed -i 's/SAGEMAKER_S3_BUCKET/${S3BucketName}/g' dgl-fraud-detection.ipynb
+              sed -i 's/SAGEMAKER_PROCESSING_INSTANCE_TYPE/${ProcessingJobInstanceType}/g' dgl-fraud-detection.ipynb
+              sed -i 's/SAGEMAKER_TRAINING_INSTANCE_TYPE/${TrainingJobInstanceType}/g' dgl-fraud-detection.ipynb
+              sudo chown -R ec2-user:ec2-user .
+            - SolutionsRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
+              Region: !Ref AWS::Region
+              SolutionsRefSource: !FindInMap [SageMaker, Source, S3Key]
+              S3BucketName: !Ref SolutionS3BucketName
+              ProcessingJobInstanceType: !Ref SageMakerProcessingJobInstanceType
+              TrainingJobInstanceType: !Ref SageMakerTrainingJobInstanceType
+Outputs:
+  SourceCode:
+    Description: "Open Jupyter IDE. This authenticate you against Jupyter."
+    Value: !Sub "https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/notebook-instances/openNotebook/GraphFraudDetection?view=classic"
+  NotebookInstance:
+    Description: "SageMaker Notebook instance to manually orchestrate data preprocessing and model training"
+    Value: !Sub "https://graphfrauddetection.notebook.${AWS::Region}.sagemaker.aws/notebooks/dgl-fraud-detection.ipynb"
