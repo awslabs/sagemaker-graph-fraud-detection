@@ -1,6 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "(SA0002) - sagemaker-graph-fraud-detection SageMaker stack"
 Parameters:
+  SolutionPrefix:
+    Description: Enter the name of the prefix for the solution used for naming
+    Type: String
   SolutionS3BucketName:
     Description: Enter the name of the S3 bucket for the solution
     Type: String
@@ -35,7 +38,7 @@ Resources:
       DirectInternetAccess: Enabled
       InstanceType: !Ref SageMakerNotebookInstanceType
       LifecycleConfigName: !GetAtt LifeCycleConfig.NotebookInstanceLifecycleConfigName
-      NotebookInstanceName: GraphFraudDetection
+      NotebookInstanceName: !Sub "${SolutionPrefix}-notebook-instance"
       RoleArn: !Ref NotebookInstanceExecutionRoleArn
       VolumeSizeInGB: 120
     Metadata:
@@ -46,6 +49,7 @@ Resources:
   LifeCycleConfig:
     Type: AWS::SageMaker::NotebookInstanceLifecycleConfig
     Properties:
+      NotebookInstanceLifecycleConfigName: !Sub "${SolutionPrefix}-nb-lifecycle-config"
       OnCreate:
         - Content:
             Fn::Base64: !Sub
@@ -65,7 +69,7 @@ Resources:
 Outputs:
   SourceCode:
     Description: "Open Jupyter IDE. This authenticate you against Jupyter."
-    Value: !Sub "https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/notebook-instances/openNotebook/GraphFraudDetection?view=classic"
+    Value: !Sub "https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/notebook-instances/openNotebook/${SolutionPrefix}-notebook-instance?view=classic"
   NotebookInstance:
     Description: "SageMaker Notebook instance to manually orchestrate data preprocessing and model training"
-    Value: !Sub "https://graphfrauddetection.notebook.${AWS::Region}.sagemaker.aws/notebooks/dgl-fraud-detection.ipynb"
+    Value: !Sub "https://${SolutionPrefix}-notebook-instance.notebook.${AWS::Region}.sagemaker.aws/notebooks/dgl-fraud-detection.ipynb"

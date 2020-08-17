@@ -1,6 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "(SA0002) - sagemaker-graph-fraud-detection SageMaker permissions stack"
 Parameters:
+  SolutionPrefix:
+    Description: Enter the name of the prefix for the solution used for naming
+    Type: String
   SolutionS3BucketName:
     Description: Enter the name of the S3 bucket for the solution
     Type: String
@@ -14,6 +17,7 @@ Resources:
   NotebookInstanceExecutionRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub "${SolutionPrefix}-${AWS::Region}-nb-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -23,10 +27,16 @@ Resources:
               - sagemaker.amazonaws.com
             Action:
             - 'sts:AssumeRole'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Needs to be explicitly named to tighten launch permissions policy
+
   NotebookInstanceIAMPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: graph-fraud-detection-notebook-instance-policy
+      PolicyName: !Sub "${SolutionPrefix}-nb-instance-policy"
       Roles:
         - !Ref NotebookInstanceExecutionRole
       PolicyDocument:

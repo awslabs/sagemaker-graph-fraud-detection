@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "(SA0002) - sagemaker-graph-fraud-detection: Solution for training a graph neural network model for fraud detection using Amazon SageMaker. Version 1"
 Parameters:
-  SolutionS3BucketPrefix:
+  SolutionPrefix:
     Description: Enter the base name of the S3 bucket for the solution
     Type: String
-    Default: "sagemaker-graph-fraud-detection"
+    Default: "sagemaker-solutions-graph-fraud"
   S3HistoricalTransactionsPrefix:
     Description: Enter the S3 prefix where historical transactions/relations are stored.
     Type: String
@@ -52,7 +52,7 @@ Metadata:
         Label:
           default: S3 Configuration
         Parameters:
-          - SolutionS3BucketPrefix
+          - SolutionPrefix
           - S3HistoricalTransactionsPrefix
           - S3ProcessingJobInputPrefix
           - S3ProcessingJobOutputPrefix
@@ -67,7 +67,7 @@ Metadata:
           - SageMakerTrainingJobInstanceType
           - SageMakerNotebookInstanceType
     ParameterLabels:
-      SolutionS3BucketPrefix:
+      SolutionPrefix:
         default: S3 Bucket Prefix
       S3HistoricalTransactionsPrefix:
         default: S3 Data Prefix
@@ -106,7 +106,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub "${SolutionS3BucketPrefix}-${AWS::AccountId}-${AWS::Region}"
+      BucketName: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -151,7 +151,8 @@ Resources:
       - SolutionRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
         Region: !Ref AWS::Region
       Parameters:
-        SolutionS3BucketName: !Sub "${SolutionS3BucketPrefix}-${AWS::AccountId}-${AWS::Region}"
+        SolutionPrefix: !Ref SolutionPrefix
+        SolutionS3BucketName: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
 
   SageMakerStack:
     Type: "AWS::CloudFormation::Stack"
@@ -162,7 +163,8 @@ Resources:
       - SolutionRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
         Region: !Ref AWS::Region
       Parameters:
-        SolutionS3BucketName: !Sub "${SolutionS3BucketPrefix}-${AWS::AccountId}-${AWS::Region}"
+        SolutionPrefix: !Ref SolutionPrefix
+        SolutionS3BucketName: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
         SageMakerProcessingJobInstanceType: !Ref SageMakerProcessingJobInstanceType
         SageMakerTrainingJobInstanceType: !Ref SageMakerTrainingJobInstanceType
         SageMakerNotebookInstanceType: !Ref SageMakerNotebookInstanceType
@@ -171,6 +173,7 @@ Resources:
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: !Sub "${SolutionPrefix}-${AWS::Region}-lambda-role"
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       AssumeRolePolicyDocument:
@@ -184,7 +187,7 @@ Resources:
               - sts:AssumeRole
       Policies:
         -
-          PolicyName: InvokeSagemaker
+          PolicyName: !Sub "${SolutionPrefix}-InvokeSagemaker"
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -197,7 +200,7 @@ Resources:
               Resource:
               - !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:*"
         -
-          PolicyName: ReadWriteFromS3
+          PolicyName: !Sub "${SolutionPrefix}-ReadWriteFromS3"
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -207,13 +210,19 @@ Resources:
               - s3:GetObject
               - s3:PutObject
               Resource:
-              - !Sub "arn:aws:s3:::${SolutionS3BucketPrefix}-${AWS::AccountId}-${AWS::Region}"
-              - !Sub "arn:aws:s3:::${SolutionS3BucketPrefix}-${AWS::AccountId}-${AWS::Region}/*"
+              - !Sub "arn:aws:s3:::${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
+              - !Sub "arn:aws:s3:::${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}/*"
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Needs to be explicitly named to tighten launch permissions policy
+
   DataPreprocessingLambda:
     Type: AWS::Lambda::Function
     Properties:
       Handler: "index.process_event"
-      FunctionName: "sagemaker-graph-fraud-data-preprocessing"
+      FunctionName: !Sub "${SolutionPrefix}-data-preprocessing"
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
@@ -222,7 +231,7 @@ Resources:
           processing_job_instance_type: !Ref SageMakerProcessingJobInstanceType
           processing_job_output_s3_prefix: !Ref S3ProcessingJobOutputPrefix
           processing_job_role_arn: !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn
-          processing_job_s3_bucket: !Sub "${SolutionS3BucketPrefix}-${AWS::AccountId}-${AWS::Region}"
+          processing_job_s3_bucket: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
           processing_job_s3_raw_data_key: !Ref S3HistoricalTransactionsPrefix
       Runtime: "python3.7"
       Code:
@@ -239,20 +248,20 @@ Resources:
       Action: 'lambda:InvokeFunction'
       FunctionName: !Ref DataPreprocessingLambda
       Principal: s3.amazonaws.com
-      SourceArn: !Sub "arn:aws:s3:::${SolutionS3BucketPrefix}-${AWS::AccountId}-${AWS::Region}"
+      SourceArn: !Sub "arn:aws:s3:::${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
       SourceAccount: !Ref AWS::AccountId
   GraphModellingLambda:
     Type: AWS::Lambda::Function
     Properties:
       Handler: "index.process_event"
-      FunctionName: "sagemaker-graph-fraud-model-training"
+      FunctionName: !Sub "${SolutionPrefix}-model-training"
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
           training_job_instance_type: !Ref SageMakerTrainingJobInstanceType
           training_job_output_s3_prefix: !Ref S3TrainingJobOutputPrefix
           training_job_role_arn: !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn
-          training_job_s3_bucket: !Sub "${SolutionS3BucketPrefix}-${AWS::AccountId}-${AWS::Region}"
+          training_job_s3_bucket: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
       Runtime: "python3.7"
       Code:
         S3Bucket: !Sub
