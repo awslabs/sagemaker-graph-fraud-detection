@@ -1,0 +1,114 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "sagemaker:CreateTrainingJob",
+                "sagemaker:DescribeTrainingJob",
+                "sagemaker:CreateProcessingJob",
+                "sagemaker:DescribeProcessingJob"
+            ],
+            "Resource": [
+                "arn:aws:sagemaker:*:*:*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "ecr:GetAuthorizationToken",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:BatchGetImage",
+                "ecr:PutImage",
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:CreateRepository",
+                "ecr:DescribeRepositories",
+                "ecr:InitiateLayerUpload",
+                "ecr:CompleteLayerUpload",
+                "ecr:UploadLayerPart",
+                "ecr:TagResource"
+            ],
+            "Resource": [
+                "*",
+                "arn:aws:ecr:*:*:repository/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "cloudwatch:PutMetricData",
+                "cloudwatch:GetMetricData",
+                "cloudwatch:GetMetricStatistics",
+                "cloudwatch:ListMetrics"
+            ],
+            "Resource": [
+                "arn:aws:cloudwatch:*:*:*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:DescribeLogStreams",
+                "logs:GetLogEvents",
+                "logs:PutLogEvents"
+            ],
+            "Resource": [
+                "arn:aws:logs:*:*:log-group:/aws/sagemaker/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": "sagemaker.amazonaws.com"
+                }
+            },
+            "Action": [
+                "iam:PassRole"
+            ],
+            "Resource": [
+                "arn:aws:iam::*:role/sm-soln-*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "iam:GetRole"
+            ],
+            "Resource": [
+                "arn:aws:iam::*:role/sm-soln-*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:ListBucket",
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sagemaker-solutions-*",
+                "arn:aws:s3:::sagemaker-solutions-*/*",
+                "arn:aws:s3:::sm-soln-*",
+                "arn:aws:s3:::sm-soln-*/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:CreateBucket",
+                "s3:ListBucket",
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sagemaker-*",
+                "arn:aws:s3:::sagemaker-*/*"
+            ],
+            "Effect": "Allow"
+        }
+    ]
+}

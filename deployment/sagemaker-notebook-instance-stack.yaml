@@ -7,18 +7,26 @@ Parameters:
   SolutionS3BucketName:
     Description: Enter the name of the S3 bucket for the solution
     Type: String
-  SageMakerProcessingJobInstanceType:
-    Description: Instance type of the SageMaker processing job
+  S3InputDataPrefix:
+    Description: S3 prefix where raw data is stored
     Type: String
-    Default:  "ml.m4.xlarge"
-  SageMakerTrainingJobInstanceType:
-    Description: Instance type of the SageMaker processing job
+    Default:  "raw-data"
+  S3ProcessingJobOutputPrefix:
+    Description: S3 prefix where preprocessed data is stored after processing
     Type: String
-    Default:  "ml.p3.2xlarge"
+    Default:  "preprocessed-data"
+  S3TrainingJobOutputPrefix:
+    Description: S3 prefix where training outputs are stored after training
+    Type: String
+    Default:  "training-output"
   SageMakerNotebookInstanceType:
     Description: Instance type of the SageMaker notebook instance
     Type: String
     Default:  "ml.t3.medium"
+  SageMakerProcessingJobContainerName:
+    Description: Name of the SageMaker processing job ECR Container
+    Type: String
+    Default:  "sm-soln-graph-fraud-preprocessing"
   NotebookInstanceExecutionRoleArn:
     Type: String
     Description: Execution Role for the SageMaker notebook instance
@@ -55,21 +63,26 @@ Resources:
             Fn::Base64: !Sub
             - |
               cd /home/ec2-user/SageMaker
-              aws s3 sync s3://${SolutionsRefBucketBase}-${Region}/${SolutionsRefSource} .
-              sed -i 's/SAGEMAKER_S3_BUCKET/${S3BucketName}/g' dgl-fraud-detection.ipynb
-              sed -i 's/SAGEMAKER_PROCESSING_INSTANCE_TYPE/${ProcessingJobInstanceType}/g' dgl-fraud-detection.ipynb
-              sed -i 's/SAGEMAKER_TRAINING_INSTANCE_TYPE/${TrainingJobInstanceType}/g' dgl-fraud-detection.ipynb
+              aws s3 cp --recursive s3://${SolutionsRefBucketBase}-${AWS::Region}/${SolutionsRefSource} .
+              touch stack_outputs.json
+              echo '{' >> stack_outputs.json
+              echo '  "AccountID": "${AWS::AccountId}",' >> stack_outputs.json
+              echo '  "AWSRegion": "${AWS::Region}",' >> stack_outputs.json
+              echo '  "NotebookInstanceExecutionRoleArn": "${NotebookInstanceExecutionRoleArn}",' >> stack_outputs.json
+              echo '  "SolutionPrefix": "${SolutionPrefix}",' >> stack_outputs.json
+              echo '  "SolutionS3Bucket": "${SolutionS3BucketName}",' >> stack_outputs.json
+              echo '  "S3InputDataPrefix": "${S3InputDataPrefix}",' >> stack_outputs.json
+              echo '  "S3ProcessingJobOutputPrefix": "${S3ProcessingJobOutputPrefix}",' >> stack_outputs.json
+              echo '  "S3TrainingJobOutputPrefix": "${S3TrainingJobOutputPrefix}",' >> stack_outputs.json
+              echo '  "SageMakerProcessingJobContainerName": "${SageMakerProcessingJobContainerName}"' >> stack_outputs.json
+              echo '}' >> stack_outputs.json
               sudo chown -R ec2-user:ec2-user .
             - SolutionsRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
-              Region: !Ref AWS::Region
               SolutionsRefSource: !FindInMap [SageMaker, Source, S3Key]
-              S3BucketName: !Ref SolutionS3BucketName
-              ProcessingJobInstanceType: !Ref SageMakerProcessingJobInstanceType
-              TrainingJobInstanceType: !Ref SageMakerTrainingJobInstanceType
 Outputs:
   SourceCode:
     Description: "Open Jupyter IDE. This authenticate you against Jupyter."
     Value: !Sub "https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/notebook-instances/openNotebook/${SolutionPrefix}-notebook-instance?view=classic"
   NotebookInstance:
     Description: "SageMaker Notebook instance to manually orchestrate data preprocessing and model training"
-    Value: !Sub "https://${SolutionPrefix}-notebook-instance.notebook.${AWS::Region}.sagemaker.aws/notebooks/dgl-fraud-detection.ipynb"
+    Value: !Sub "https://${SolutionPrefix}-notebook-instance.notebook.${AWS::Region}.sagemaker.aws/notebooks/dgl_fraud_detection.ipynb"

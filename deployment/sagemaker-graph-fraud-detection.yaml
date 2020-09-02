@@ -2,9 +2,17 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "(SA0002) - sagemaker-graph-fraud-detection: Solution for training a graph neural network model for fraud detection using Amazon SageMaker. Version 1"
 Parameters:
   SolutionPrefix:
-    Description: Enter the base name of the S3 bucket for the solution
     Type: String
-    Default: "sagemaker-solutions-graph-fraud"
+    Default: "sm-soln-graph-fraud-detection"
+    Description: |
+      Used to name resources created as part of this stack (and inside nested stacks too).
+      Can be the same as the stack name used by AWS CloudFormation, but this field has extra
+      constraints because it's used to name resources with restrictions (e.g. Amazon S3 bucket
+      names cannot contain capital letters).
+    AllowedPattern: '^sm-soln-graph-fraud-[a-z0-9\-]{1,20}$'
+    ConstraintDescription: |
+      Only allowed to use lowercase letters, hyphens and/or numbers.
+      Should also start with 'sm-soln-graph-fraud' for permission management.
   S3HistoricalTransactionsPrefix:
     Description: Enter the S3 prefix where historical transactions/relations are stored.
     Type: String
@@ -31,7 +39,7 @@ Parameters:
   SageMakerProcessingJobContainerName:
     Description: Name of the SageMaker processing job ECR Container
     Type: String
-    Default:  "sagemaker-preprocessing-container"
+    Default:  "sm-soln-graph-fraud-preprocessing"
   SageMakerProcessingJobInstanceType:
     Description: Instance type of the SageMaker processing job
     Type: String
@@ -43,16 +51,20 @@ Parameters:
   SageMakerNotebookInstanceType:
     Description: Instance type of the SageMaker notebook instance
     Type: String
-    Default:  "ml.t3.medium"
+    Default:  "ml.m4.xlarge"
 
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       -
         Label:
-          default: S3 Configuration
+          default: Solution Configuration
         Parameters:
           - SolutionPrefix
+      -
+        Label:
+          default: S3 Configuration
+        Parameters:
           - S3HistoricalTransactionsPrefix
           - S3ProcessingJobInputPrefix
           - S3ProcessingJobOutputPrefix
@@ -68,7 +80,7 @@ Metadata:
           - SageMakerNotebookInstanceType
     ParameterLabels:
       SolutionPrefix:
-        default: S3 Bucket Prefix
+        default: Solution Resources Name Prefix
       S3HistoricalTransactionsPrefix:
         default: S3 Data Prefix
       S3ProcessingJobInputPrefix:
@@ -165,9 +177,11 @@ Resources:
       Parameters:
         SolutionPrefix: !Ref SolutionPrefix
         SolutionS3BucketName: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
-        SageMakerProcessingJobInstanceType: !Ref SageMakerProcessingJobInstanceType
-        SageMakerTrainingJobInstanceType: !Ref SageMakerTrainingJobInstanceType
+        S3InputDataPrefix: !Ref S3HistoricalTransactionsPrefix
+        S3ProcessingJobOutputPrefix: !Ref S3ProcessingJobOutputPrefix
+        S3TrainingJobOutputPrefix: !Ref S3TrainingJobOutputPrefix
         SageMakerNotebookInstanceType: !Ref SageMakerNotebookInstanceType
+        SageMakerProcessingJobContainerName: !Ref SageMakerProcessingJobContainerName
         NotebookInstanceExecutionRoleArn: !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn
 
   LambdaExecutionRole:
@@ -289,3 +303,39 @@ Outputs:
     Condition: CreateClassicSageMakerResources
     Description: "SageMaker Notebook instance to manually orchestrate data preprocessing and model training"
     Value: !GetAtt SageMakerStack.Outputs.NotebookInstance
+
+  AccountID:
+    Description: "AWS Account ID to be passed downstream to the notebook instance"
+    Value: !Ref AWS::AccountId
+
+  AWSRegion:
+    Description: "AWS Region to be passed downstream to the notebook instance"
+    Value: !Ref AWS::Region
+
+  NotebookInstanceExecutionRoleArn:
+    Description: "Arn of SageMaker Execution Role"
+    Value: !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn
+
+  SolutionPrefix:
+    Description: "Solution Prefix for naming SageMaker transient resources"
+    Value: !Ref SolutionPrefix
+
+  SolutionS3Bucket:
+    Description: "Solution S3 bucket name"
+    Value: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
+
+  S3InputDataPrefix:
+    Description: "S3 bucket prefix for raw data"
+    Value: !Ref S3HistoricalTransactionsPrefix
+
+  S3ProcessingJobOutputPrefix:
+    Description: "S3 bucket prefix for processed data"
+    Value: !Ref S3ProcessingJobOutputPrefix
+
+  S3TrainingJobOutputPrefix:
+    Description: "S3 bucket prefix for trained model and other artifacts"
+    Value: !Ref S3TrainingJobOutputPrefix
+
+  SageMakerProcessingJobContainerName:
+    Description: "ECR Container name for SageMaker processing job"
+    Value: !Ref SageMakerProcessingJobContainerName

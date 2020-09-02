@@ -1,0 +1,129 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:CreateStack"
+            ],
+            "Resource": [
+                "arn:aws:cloudformation:*:*:stack/sm-soln-*"
+            ],
+            "Condition" : {
+                "ForAllValues:StringLike" : {
+                    "cloudformation:TemplateUrl" : [
+                        "https://s3.amazonaws.com/sagemaker-solutions-us-east-1/*",
+                        "https://s3-us-east-2.amazonaws.com/sagemaker-solutions-us-east-2/*",
+                        "https://s3-us-west-2.amazonaws.com/sagemaker-solutions-us-west-2/*",
+                        "https://s3.amazonaws.com/sc-*",
+                        "https://s3.us-east-2.amazonaws.com/sc-*",
+                        "https://s3.us-west-2.amazonaws.com/sc-*"
+                    ]
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:DeleteStack"
+            ],
+            "Resource": "arn:aws:cloudformation:*:*:stack/sm-soln-*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:DescribeStackEvents",
+                "cloudformation:DescribeStacks",
+                "cloudformation:DescribeStackResource",
+                "cloudformation:DescribeStackResources",
+                "cloudformation:GetTemplate",
+                "cloudformation:GetTemplateSummary",
+                "cloudformation:ValidateTemplate",
+                "cloudformation:ListStacks",
+                "cloudformation:ListStackResources"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::sc-*/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateRole",
+                "iam:GetRole",
+                "iam:PassRole",
+                "iam:DeleteRole",
+                "iam:GetRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:DeleteRolePolicy",
+                "iam:DetachRolePolicy",
+                "iam:AttachRolePolicy"
+            ],
+            "Resource": "arn:aws:iam::*:role/sm-soln-*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreatePolicy",
+                "iam:DeletePolicy"
+            ],
+            "Resource": "arn:aws:iam::*:policy/sm-soln-*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "lambda:AddPermission",
+                "lambda:RemovePermission",
+                "lambda:CreateFunction",
+                "lambda:DeleteFunction",
+                "lambda:GetFunction",
+                "lambda:GetFunctionConfiguration"
+            ],
+            "Resource": "arn:aws:lambda:*:*:function:sm-soln-*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:CreateBucket",
+                "s3:DeleteBucket",
+                "s3:PutBucketNotification",
+                "s3:PutBucketPublicAccessBlock",
+                "s3:PutEncryptionConfiguration"
+            ],
+            "Resource": "arn:aws:s3:::sm-soln-*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::sagemaker-solutions-*/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sagemaker:CreateNotebookInstance",
+                "sagemaker:StopNotebookInstance",
+                "sagemaker:DescribeNotebookInstance",
+                "sagemaker:DeleteNotebookInstance"
+            ],
+            "Resource": "arn:aws:sagemaker:*:*:notebook-instance/sm-soln-*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sagemaker:CreateNotebookInstanceLifecycleConfig",
+                "sagemaker:DescribeNotebookInstanceLifecycleConfig",
+                "sagemaker:DeleteNotebookInstanceLifecycleConfig"
+            ],
+            "Resource": "arn:aws:sagemaker:*:*:notebook-instance-lifecycle-config/sm-soln-*"
+        }
+    ]
+}

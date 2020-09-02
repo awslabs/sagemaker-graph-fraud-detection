@@ -22,9 +22,9 @@ To get started quickly, use the following quick-launch link to create a CloudFor
 
 | Region | Stack |
 | ---- | ---- |
-|US East (N. Virginia) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https://s3.amazonaws.com/sagemaker-solutions-us-east-1/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=sagemaker-solutions-graph-fraud-detection-stack&param_LaunchSageMakerNotebookClassic=Yes) |
-|US East (Ohio) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-east-2.console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/quickcreate?templateURL=https://s3-us-east-2.amazonaws.com/sagemaker-solutions-us-east-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=sagemaker-solutions-graph-fraud-detection-stack&param_LaunchSageMakerNotebookClassic=Yes) |
-|US West (Oregon) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/quickcreate?templateURL=https://s3-us-west-2.amazonaws.com/sagemaker-solutions-us-west-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=sagemaker-solutions-graph-fraud-detection-stack&param_LaunchSageMakerNotebookClassic=Yes) |
+|US East (N. Virginia) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https://s3.amazonaws.com/sagemaker-solutions-us-east-1/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=sm-soln-graph-fraud-detection-stack&param_LaunchSageMakerNotebookClassic=Yes) |
+|US East (Ohio) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-east-2.console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/quickcreate?templateURL=https://s3-us-east-2.amazonaws.com/sagemaker-solutions-us-east-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=sm-soln-graph-fraud-detection-stack&param_LaunchSageMakerNotebookClassic=Yes) |
+|US West (Oregon) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/quickcreate?templateURL=https://s3-us-west-2.amazonaws.com/sagemaker-solutions-us-west-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=sm-soln-graph-fraud-detection-stack&param_LaunchSageMakerNotebookClassic=Yes) |
 
 On the stack creation page, verify that the **Launch Classic SageMaker Notebook Instance** field under SageMaker configurations is set to 'Yes', check the boxes to acknowledge creation of IAM resources, and click **Create Stack**.
 
@@ -42,7 +42,7 @@ The project is divided into two main modules.
 The [first module](source/sagemaker/data-preprocessing) uses [Amazon SageMaker Processing](https://docs.aws.amazon.com/sagemaker/latest/dg/processing-job.html) to do feature engineering and extract edgelists from a table of transactions or interactions.
 
 
-The [second module](source/sagemaker/dgl-fraud-detection) shows how to use DGL to define a GNN model and train the model using [Amazon SageMaker training infrastructure](https://docs.aws.amazon.com/sagemaker/latest/dg/deep-graph-library.html).
+The [second module](source/sagemaker/sagemaker_graph_fraud_detection/dgl_fraud_detection) shows how to use DGL to define a GNN model and train the model using [Amazon SageMaker training infrastructure](https://docs.aws.amazon.com/sagemaker/latest/dg/deep-graph-library.html).
 
 
 The [jupyter notebook](source/sagemaker/dgl-fraud-detection.ipynb) shows how to run the full project on an [example dataset](https://www.kaggle.com/c/ieee-fraud-detection/data).
@@ -62,27 +62,31 @@ The project also contains a [cloud formation template](deployment/sagemaker-grap
       * `index.py`: Lambda function script for invoking SageMaker training
   * `sagemaker/`
     * `baselines/`
-      * `graph-fraud-baseline.ipynb`:  Jupyter notebook for a baseline method using just the graph structure
       * `mlp-fraud-baseline.ipynb`:  Jupyter notebook for feature based MLP baseline method using SageMaker and MXNet
       * `mlp_fraud_entry_point.py`: python entry point used by the MLP baseline notebook for MXNet training/deployment
+      * `utils.py`: utility functions for baseline notebooks
       * `xgboost-fraud-entry-point.ipynb`: Jupyter notebook for feature based XGBoost baseline method using SageMaker
     * `data-preprocessing/`
       * `container/`
         * `Dockerfile`: Describes custom Docker image hosted on Amazon ECR for SageMaker Processing
         * `build_and_push.sh`: Script to build Docker image and push to Amazon ECR
       * `graph_data_preprocessor.py`: Custom script used by SageMaker Processing for data processing/feature engineering
-    * `dgl-fraud-detection/`
-      * `model`
-        *  `__init__.py`: treat containing model directory as a package
-        *  `mxnet.py`: Implements the various graph neural network models used in the project with the mxnet backend
-      * `data.py`: Contains functions for reading node features and labels
-      * `estimator_fns.py`: Contains functions for parsing input from SageMaker estimator objects
-      * `graph.py`: Contains functions for constructing DGL Graphs with node features and edge lists
-      * `requirements.txt`: Describes Python package requirements of the Amazon SageMaker training instance
-      * `sampler.py`: Contains functions for graph sampling for mini-batch training
-      * `train_dgl_mxnet_entry_point.py`: python entry point used by the notebook for GNN training with DGL mxnet backend
-      * `utils.py`: python script with utility functions for computing metrics and plots
+    * `sagemaker_graph_fraud_detection/`
+      * `dgl_fraud_detection/`
+        * `model`
+          *  `mxnet.py`: Implements the various graph neural network models used in the project with the mxnet backend
+        * `data.py`: Contains functions for reading node features and labels
+        * `estimator_fns.py`: Contains functions for parsing input from SageMaker estimator objects
+        * `graph.py`: Contains functions for constructing DGL Graphs with node features and edge lists
+        * `requirements.txt`: Describes Python package requirements of the Amazon SageMaker training instance
+        * `sampler.py`: Contains functions for graph sampling for mini-batch training
+        * `train_dgl_mxnet_entry_point.py`: python entry point used by the notebook for GNN training with DGL mxnet backend
+        * `utils.py`: python script with utility functions for computing metrics and plots
+      * `config.py`: python file to load stack configurations and pass to sagemaker notebook
+      * `requirements.txt`: Describes Python package requirements of the SageMaker notebook instance
+      * `setup.py`: setup sagemaker-graph-fraud-detection as a python package
     * `dgl-fraud-detection.ipynb`: Orchestrates the solution. Triggers preprocessing and model training
+    * `setup.sh`: prepare notebook environment with necessary pre-reqs
 
 ## License
 

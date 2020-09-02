@@ -29,7 +29,7 @@ Overall, the project is divided into two modules:
 
 
 
-* The [second module](../source/sagemaker/dgl-fraud-detection) shows how to use DGL to define a Graph Neural Network model and train the model using [Amazon SageMaker training infrastructure](https://docs.aws.amazon.com/sagemaker/latest/dg/deep-graph-library.html). 
+* The [second module](../source/sagemaker/sagemaker_graph_fraud_detection/dgl_fraud_detection) shows how to use DGL to define a Graph Neural Network model and train the model using [Amazon SageMaker training infrastructure](https://docs.aws.amazon.com/sagemaker/latest/dg/deep-graph-library.html). 
 
 
 To run the full project end to end, use the [jupyter notebook](../source/sagemaker/dgl-fraud-detection.ipynb) 
@@ -47,7 +47,7 @@ Once the SageMaker Processing instance finishes running the script the files in 
 
 ## Graph Modeling and Training
 
-The graph modeling and training code is implemented using DGL with MXNet as the backend framework and is designed to be run on the managed SageMaker training instances. The [_dgl-fraud-detection_ folder](../source/sagemaker/dgl-fraud-detection) contains the code that is run on those training instances. The supported graph neural network models are defined in [_model.py_](source/sagemaker/dgl-fraud-detection/model.py), and helper functions for graph construction are implemented in [_data.py_](../source/sagemaker/dgl-fraud-detection/data.py). The graph sampling functions for mini-batch graph training are implemented in [sampler.py](../source/sagemaker/dgl-fraud-detection/sampler.py) and [_utils.py_](../source/sagemaker/dgl-fraud-detection/utils.py) contains utility functions. The entry point for the graph modeling and training however is [_train_dgl_entry_point.py_](source/sagemaker/dgl-fraud-detection/train_dgl_entry_point.py).
+The graph modeling and training code is implemented using DGL with MXNet as the backend framework and is designed to be run on the managed SageMaker training instances. The [_dgl-fraud-detection_ folder](../source/sagemaker/sagemaker_graph_fraud_detection/dgl_fraud_detection) contains the code that is run on those training instances. The supported graph neural network models are defined in [_model.py_](source/sagemaker/dgl-fraud-detection/model.py), and helper functions for graph construction are implemented in [_data.py_](../source/sagemaker/sagemaker_graph_fraud_detection/dgl_fraud_detection/data.py). The graph sampling functions for mini-batch graph training are implemented in [sampler.py](../source/sagemaker/sagemaker_graph_fraud_detection/dgl_fraud_detection/sampler.py) and [_utils.py_](../source/sagemaker/sagemaker_graph_fraud_detection/dgl_fraud_detection/utils.py) contains utility functions. The entry point for the graph modeling and training however is [_train_dgl_entry_point.py_](source/sagemaker/dgl-fraud-detection/train_dgl_entry_point.py).
 
 The entry point script orchestrates the entire graph training process by going through the following steps:
 

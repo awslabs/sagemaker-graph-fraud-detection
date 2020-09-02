@@ -2,11 +2,9 @@
 
 image=$1
 
-region=$(aws configure get region)
-region=${region:-us-east-1}
+region=$2
 
-# Get the account number associated with the current IAM credentials
-account=$(aws sts get-caller-identity --query Account --output text)
+account=$3
 
 # Get the region defined in the current configuration (default to us-east-1 if none defined)
 fullname="${account}.dkr.ecr.${region}.amazonaws.com/${image}:latest"

@@ -1,0 +1,71 @@
+{
+    "id": "sm-soln-gfd",
+    "name": "Amazon SageMaker and Deep Graph Library for Fraud Detection in Heterogeneous Graphs",
+    "shortName": "Graph Fraud Detection",
+    "priority": 0,
+    "desc": "Many online businesses lose billions annually to fraud, but machine learning based fraud detection models can help businesses predict what interactions or users are likely fraudulent and save them from incurring those costs. In this project, we formulate the problem of fraud detection as a classification task on a heterogeneous interaction network. The machine learning model is a Graph Neural Network (GNN) that learns latent representations of users or transactions which can then be easily separated into fraud or legitimate.",
+    "meta": "fraud classification detection graph gnn network interaction",
+    "tags": ["financial services", "fraud detection", "internet retail"],
+    "parameters": [
+        {
+            "name": "SolutionPrefix",
+            "type": "text",
+            "default": "sm-soln-graph-fraud"
+        },
+        {
+            "name": "S3HistoricalTransactionsPrefix",
+            "type": "text",
+            "default": "raw-data"
+        },
+        {
+            "name": "S3ProcessingJobInputPrefix",
+            "type": "text",
+            "default": "processing-input"
+        },
+        {
+            "name": "S3ProcessingJobOutputPrefix",
+            "type": "text",
+            "default": "preprocessed-data"
+        },
+        {
+            "name": "S3TrainingJobOutputPrefix",
+            "type": "text",
+            "default": "training-output"
+        },
+        {
+            "name": "LaunchSageMakerNotebookClassic",
+            "type": "text",
+            "default": "No"
+        },
+        {
+            "name": "SageMakerProcessingJobContainerName",
+            "type": "text",
+            "default": "sm-soln-graph-fraud-preprocessing"
+        },
+        {
+            "name": "SageMakerProcessingJobInstanceType",
+            "type": "text",
+            "default": "ml.m4.xlarge"
+        },
+        {
+            "name": "SageMakerTrainingJobInstanceType",
+            "type": "text",
+            "default": "ml.p3.2xlarge"
+        },
+        {
+            "name": "SageMakerNotebookInstanceType",
+            "type": "text",
+            "default": "ml.m4.xlarge"
+        }
+    ],
+    "acknowledgements": ["CAPABILITY_IAM","CAPABILITY_NAMED_IAM"],
+    "cloudFormationTemplate": "s3-us-east-2.amazonaws.com/sagemaker-solutions-us-east-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml",
+    "serviceCatalogProduct": "TBD",
+    "copyS3Source": "sagemaker-solutions-us-east-2",
+    "copyS3SourcePrefix": "Fraud-detection-in-financial-networks/source/sagemaker",
+    "notebooksDirectory": "Fraud-detection-in-financial-networks/source/sagemaker",
+    "notebookPaths": [
+        "Fraud-detection-in-financial-networks/source/sagemaker/dgl-fraud-detection.ipynb"
+    ],
+    "permissions": "TBD"
+ }
