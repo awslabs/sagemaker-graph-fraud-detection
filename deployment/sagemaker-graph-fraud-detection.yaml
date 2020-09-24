@@ -13,6 +13,14 @@ Parameters:
     ConstraintDescription: |
       Only allowed to use lowercase letters, hyphens and/or numbers.
       Should also start with 'sm-soln-graph-fraud' for permission management.
+  SolutionExecutionRole:
+    Type: String
+    Default: ""
+    Description: |
+      IAM Role that will be attached to the resources created by this cloudformation to grant them permissions to
+      perform their required functions. This role should allow SageMaker and Lambda perform the required actions like
+      creating training jobs and processing jobs. If left blank, the template will attempt to create a role for you.
+      This can cause a stack creation error if you don't have privileges to create new roles.
   S3HistoricalTransactionsPrefix:
     Description: Enter the S3 prefix where historical transactions/relations are stored.
     Type: String
@@ -36,6 +44,17 @@ Parameters:
       - "Yes"
       - "No"
     Default: "No"
+  BuildSageMakerContainersRemotely:
+    Description: |
+      Whether to launch a CodeBuild project to build sagemaker containers.
+      If set to 'Yes' SageMaker notebook will use the CodeBuild project to launch a build job for sagemaker containers.
+      If set to 'No' SageMaker notebook will attempt to build solution containers on the notebook instance.
+      This may lead to some unexpected issues as docker isn't installed in SageMaker studio containers.
+    Type: String
+    AllowedValues:
+      - "Yes"
+      - "No"
+    Default: "Yes"
   SageMakerProcessingJobContainerName:
     Description: Name of the SageMaker processing job ECR Container
     Type: String
@@ -61,6 +80,7 @@ Metadata:
           default: Solution Configuration
         Parameters:
           - SolutionPrefix
+          - SolutionExecutionRole
       -
         Label:
           default: S3 Configuration
@@ -74,6 +94,7 @@ Metadata:
           default: SageMaker Configuration
         Parameters:
           - LaunchSageMakerNotebookClassic
+          - BuildSageMakerContainersRemotely
           - SageMakerProcessingJobContainerName
           - SageMakerProcessingJobInstanceType
           - SageMakerTrainingJobInstanceType
@@ -81,6 +102,8 @@ Metadata:
     ParameterLabels:
       SolutionPrefix:
         default: Solution Resources Name Prefix
+      SolutionExecutionRole:
+        default: Solution IAM Role Arn
       S3HistoricalTransactionsPrefix:
         default: S3 Data Prefix
       S3ProcessingJobInputPrefix:
@@ -91,6 +114,8 @@ Metadata:
         default: S3 Training Results Prefix
       LaunchSageMakerNotebookClassic:
         default: Launch Classic SageMaker Notebook Instance
+      BuildSageMakerContainersRemotely:
+        default: Build SageMaker containers on AWS CodeBuild
       SageMakerProcessingJobContainerName:
         default: SageMaker Processing Container Name
       SageMakerProcessingJobInstanceType:
@@ -109,9 +134,14 @@ Mappings:
       S3Key: "Fraud-detection-in-financial-networks/build/data_preprocessing.zip"
     GraphModelling:
       S3Key: "Fraud-detection-in-financial-networks/build/graph_modelling.zip"
+  CodeBuild:
+    ProcessingContainer:
+      S3Key: "Fraud-detection-in-financial-networks/build/sagemaker_data_preprocessing.zip"
 
 Conditions:
   CreateClassicSageMakerResources: !Equals [ !Ref LaunchSageMakerNotebookClassic, "Yes" ]
+  CreateCustomSolutionRole: !Equals [!Ref SolutionExecutionRole, ""]
+  CreateCodeBuildProject: !Equals [!Ref BuildSageMakerContainersRemotely, "Yes"]
 
 Resources:
   S3Bucket:
@@ -157,6 +187,7 @@ Resources:
   
   SageMakerPermissionsStack:
     Type: "AWS::CloudFormation::Stack"
+    Condition: CreateCustomSolutionRole
     Properties:
       TemplateURL: !Sub
       - "https://s3.amazonaws.com/${SolutionRefBucketBase}-${Region}/Fraud-detection-in-financial-networks/deployment/sagemaker-permissions-stack.yaml"
@@ -165,6 +196,7 @@ Resources:
       Parameters:
         SolutionPrefix: !Ref SolutionPrefix
         SolutionS3BucketName: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
+        SolutionCodeBuildProject: !Sub "${SolutionPrefix}-processing-job-container-build"
 
   SageMakerStack:
     Type: "AWS::CloudFormation::Stack"
@@ -182,69 +214,55 @@ Resources:
         S3TrainingJobOutputPrefix: !Ref S3TrainingJobOutputPrefix
         SageMakerNotebookInstanceType: !Ref SageMakerNotebookInstanceType
         SageMakerProcessingJobContainerName: !Ref SageMakerProcessingJobContainerName
-        NotebookInstanceExecutionRoleArn: !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn
+        SageMakerProcessingJobContainerCodeBuild: !If [CreateCodeBuildProject, !Ref ProcessingJobContainerBuild, "local"]
+        NotebookInstanceExecutionRoleArn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
 
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
+  ProcessingJobContainerBuild:
+    Condition: CreateCodeBuildProject
+    Type: AWS::CodeBuild::Project
     Properties:
-      RoleName: !Sub "${SolutionPrefix}-${AWS::Region}-lambda-role"
-      ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies:
-        -
-          PolicyName: !Sub "${SolutionPrefix}-InvokeSagemaker"
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-            - Effect: Allow
-              Action:
-              - sagemaker:CreateTrainingJob
-              - sagemaker:DescribeTrainingJob
-              - sagemaker:CreateProcessingJob
-              - sagemaker:DescribeProcessingJob
-              Resource:
-              - !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:*"
-        -
-          PolicyName: !Sub "${SolutionPrefix}-ReadWriteFromS3"
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-            - Effect: Allow
-              Action:
-              - s3:ListBucket
-              - s3:GetObject
-              - s3:PutObject
-              Resource:
-              - !Sub "arn:aws:s3:::${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
-              - !Sub "arn:aws:s3:::${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}/*"
+      Name: !Sub "${SolutionPrefix}-processing-job-container-build"
+      Description: !Sub "Build docker container for SageMaker Processing job for ${SolutionPrefix}"
+      ServiceRole: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
+      Source:
+        Type: S3
+        Location: !Sub
+         - "${SolutionRefBucketBase}-${AWS::Region}/${SourceKey}"
+         - SolutionRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
+           SourceKey: !FindInMap [CodeBuild, ProcessingContainer, S3Key]
+      Environment:
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/standard:4.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: True
+        EnvironmentVariables:
+          - Name: ecr_repository
+            Value: !Ref SageMakerProcessingJobContainerName
+          - Name: region
+            Value: !Ref AWS::Region
+          - Name: account_id
+            Value: !Ref AWS::AccountId
+      Artifacts:
+        Type: NO_ARTIFACTS
     Metadata:
       cfn_nag:
         rules_to_suppress:
-          - id: W28
-            reason: Needs to be explicitly named to tighten launch permissions policy
+          - id: W32
+            reason: overriding encryption requirements for codebuild
 
   DataPreprocessingLambda:
     Type: AWS::Lambda::Function
     Properties:
       Handler: "index.process_event"
       FunctionName: !Sub "${SolutionPrefix}-data-preprocessing"
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
       Environment:
         Variables:
           processing_job_ecr_repository: !Ref SageMakerProcessingJobContainerName
           processing_job_input_s3_prefix: !Ref S3ProcessingJobInputPrefix
           processing_job_instance_type: !Ref SageMakerProcessingJobInstanceType
           processing_job_output_s3_prefix: !Ref S3ProcessingJobOutputPrefix
-          processing_job_role_arn: !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn
+          processing_job_role_arn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
           processing_job_s3_bucket: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
           processing_job_s3_raw_data_key: !Ref S3HistoricalTransactionsPrefix
       Runtime: "python3.7"
@@ -256,6 +274,11 @@ Resources:
         S3Key: !FindInMap [Lambda, DataPreprocessing, S3Key]
       Timeout : 60
       MemorySize : 256
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: Passed in role or created role both have cloudwatch write permissions
   DataPreprocessingLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -269,12 +292,12 @@ Resources:
     Properties:
       Handler: "index.process_event"
       FunctionName: !Sub "${SolutionPrefix}-model-training"
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
       Environment:
         Variables:
           training_job_instance_type: !Ref SageMakerTrainingJobInstanceType
           training_job_output_s3_prefix: !Ref S3TrainingJobOutputPrefix
-          training_job_role_arn: !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn
+          training_job_role_arn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
           training_job_s3_bucket: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
       Runtime: "python3.7"
       Code:
@@ -285,6 +308,11 @@ Resources:
         S3Key: !FindInMap [Lambda, GraphModelling, S3Key]
       Timeout : 60
       MemorySize : 256
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: Passed in role or created role both have cloudwatch write permissions
   GraphModellingLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -314,7 +342,7 @@ Outputs:
 
   NotebookInstanceExecutionRoleArn:
     Description: "Arn of SageMaker Execution Role"
-    Value: !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn
+    Value: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
 
   SolutionPrefix:
     Description: "Solution Prefix for naming SageMaker transient resources"
@@ -339,3 +367,7 @@ Outputs:
   SageMakerProcessingJobContainerName:
     Description: "ECR Container name for SageMaker processing job"
     Value: !Ref SageMakerProcessingJobContainerName
+
+  SageMakerProcessingJobContainerBuild:
+    Description: "Code build project for remotely building the sagemaker preprocessing container"
+    Value: !If [CreateCodeBuildProject, !Ref ProcessingJobContainerBuild, "local"]

@@ -22,7 +22,7 @@ default_role = sagemaker.get_execution_role()
 
 cfn_stack_outputs = {}
 current_folder = get_current_folder(globals())
-cfn_stack_outputs_filepath = Path(current_folder, '../../stack_outputs.json').resolve()
+cfn_stack_outputs_filepath = Path(current_folder, '../stack_outputs.json').resolve()
 
 if os.path.exists(cfn_stack_outputs_filepath):
     with open(cfn_stack_outputs_filepath) as f:
@@ -39,5 +39,6 @@ s3_processing_output = cfn_stack_outputs.get('S3ProcessingJobOutputPrefix', 'pro
 s3_train_output = cfn_stack_outputs.get('S3TrainingJobOutputPrefix', 'training-output')
 
 ecr_repository = cfn_stack_outputs.get('SageMakerProcessingJobContainerName', 'sm-soln-graph-fraud-preprocessing')
+container_build_project = cfn_stack_outputs.get('SageMakerProcessingJobContainerBuild', 'local')
 
 role = cfn_stack_outputs.get('NotebookInstanceExecutionRoleArn', default_role)

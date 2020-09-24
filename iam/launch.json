@@ -4,6 +4,15 @@
         {
             "Effect": "Allow",
             "Action": [
+                "servicecatalog:*"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
                 "cloudformation:CreateStack"
             ],
             "Resource": [
@@ -15,6 +24,7 @@
                         "https://s3.amazonaws.com/sagemaker-solutions-us-east-1/*",
                         "https://s3-us-east-2.amazonaws.com/sagemaker-solutions-us-east-2/*",
                         "https://s3-us-west-2.amazonaws.com/sagemaker-solutions-us-west-2/*",
+                        "https://s3.amazonaws.com/sagemaker-solutions-*",
                         "https://s3.amazonaws.com/sc-*",
                         "https://s3.us-east-2.amazonaws.com/sc-*",
                         "https://s3.us-west-2.amazonaws.com/sc-*"
@@ -56,25 +66,17 @@
         {
             "Effect": "Allow",
             "Action": [
-                "iam:CreateRole",
-                "iam:GetRole",
-                "iam:PassRole",
-                "iam:DeleteRole",
-                "iam:GetRolePolicy",
-                "iam:PutRolePolicy",
-                "iam:DeleteRolePolicy",
-                "iam:DetachRolePolicy",
-                "iam:AttachRolePolicy"
+                "iam:PassRole"
             ],
             "Resource": "arn:aws:iam::*:role/sm-soln-*"
         },
         {
             "Effect": "Allow",
             "Action": [
-                "iam:CreatePolicy",
-                "iam:DeletePolicy"
+                "codebuild:CreateProject",
+                "codebuild:DeleteProject"
             ],
-            "Resource": "arn:aws:iam::*:policy/sm-soln-*"
+            "Resource": "arn:aws:codebuild:*:*:project/sm-soln-*"
         },
         {
             "Effect": "Allow",

@@ -27,6 +27,10 @@ Parameters:
     Description: Name of the SageMaker processing job ECR Container
     Type: String
     Default:  "sm-soln-graph-fraud-preprocessing"
+  SageMakerProcessingJobContainerCodeBuild:
+    Description: Name of the SageMaker processing container code build project
+    Type: String
+    Default:  "local"
   NotebookInstanceExecutionRoleArn:
     Type: String
     Description: Execution Role for the SageMaker notebook instance
@@ -74,7 +78,8 @@ Resources:
               echo '  "S3InputDataPrefix": "${S3InputDataPrefix}",' >> stack_outputs.json
               echo '  "S3ProcessingJobOutputPrefix": "${S3ProcessingJobOutputPrefix}",' >> stack_outputs.json
               echo '  "S3TrainingJobOutputPrefix": "${S3TrainingJobOutputPrefix}",' >> stack_outputs.json
-              echo '  "SageMakerProcessingJobContainerName": "${SageMakerProcessingJobContainerName}"' >> stack_outputs.json
+              echo '  "SageMakerProcessingJobContainerName": "${SageMakerProcessingJobContainerName}",' >> stack_outputs.json
+              echo '  "SageMakerProcessingJobContainerBuild": "${SageMakerProcessingJobContainerCodeBuild}"' >> stack_outputs.json
               echo '}' >> stack_outputs.json
               sudo chown -R ec2-user:ec2-user .
             - SolutionsRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
@@ -85,4 +90,4 @@ Outputs:
     Value: !Sub "https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/notebook-instances/openNotebook/${SolutionPrefix}-notebook-instance?view=classic"
   NotebookInstance:
     Description: "SageMaker Notebook instance to manually orchestrate data preprocessing and model training"
-    Value: !Sub "https://${SolutionPrefix}-notebook-instance.notebook.${AWS::Region}.sagemaker.aws/notebooks/dgl_fraud_detection.ipynb"
+    Value: !Sub "https://${SolutionPrefix}-notebook-instance.notebook.${AWS::Region}.sagemaker.aws/notebooks/dgl-fraud-detection.ipynb"

@@ -1,0 +1,11 @@
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - bash container/build_and_push.sh $ecr_repository $region $account_id
+  post_build:
+    commands:
+      - echo Build completed on `date`

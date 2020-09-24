@@ -4,9 +4,15 @@ Parameters:
   SolutionPrefix:
     Description: Enter the name of the prefix for the solution used for naming
     Type: String
+    Default: "sm-soln-graph-fraud-detection"
   SolutionS3BucketName:
     Description: Enter the name of the S3 bucket for the solution
     Type: String
+    Default: "sm-soln-*"
+  SolutionCodeBuildProject:
+    Description: Enter the name of the Code build project for the solution
+    Type: String
+    Default: "sm-soln-*"
 
 Mappings:
   S3:
@@ -25,6 +31,8 @@ Resources:
             Principal:
               Service:
               - sagemaker.amazonaws.com
+              - lambda.amazonaws.com
+              - codebuild.amazonaws.com
             Action:
             - 'sts:AssumeRole'
     Metadata:
@@ -68,6 +76,13 @@ Resources:
           - !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/*"
         - Effect: Allow
           Action:
+          - codebuild:BatchGetBuilds
+          - codebuild:StartBuild
+          Resource:
+          - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${SolutionCodeBuildProject}"
+          - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:build/*"
+        - Effect: Allow
+          Action:
           - cloudwatch:PutMetricData
           - cloudwatch:GetMetricData
           - cloudwatch:GetMetricStatistics
@@ -83,6 +98,8 @@ Resources:
           - logs:PutLogEvents
           Resource:
           - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/*"
+          - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*"
+          - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*"
         - Effect: Allow
           Action:
           - iam:PassRole
@@ -101,6 +118,7 @@ Resources:
           - s3:ListBucket
           - s3:GetObject
           - s3:PutObject
+          - s3:GetObjectVersion
           - s3:DeleteObject
           Resource:
           - !Sub "arn:aws:s3:::${SolutionS3BucketName}"
@@ -118,6 +136,7 @@ Resources:
           - s3:CreateBucket
           - s3:ListBucket
           - s3:GetObject
+          - s3:GetObjectVersion
           - s3:PutObject
           - s3:DeleteObject
           Resource:

@@ -35,6 +35,17 @@
         },
         {
             "Action": [
+                "codebuild:BatchGetBuilds",
+                "codebuild:StartBuild"
+            ],
+            "Resource": [
+                "arn:aws:codebuild:*:*:project/sm-soln-*",
+                "arn:aws:codebuild:*:*:build/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
                 "cloudwatch:PutMetricData",
                 "cloudwatch:GetMetricData",
                 "cloudwatch:GetMetricStatistics",
