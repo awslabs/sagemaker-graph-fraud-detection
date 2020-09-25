@@ -13,7 +13,7 @@ Parameters:
     ConstraintDescription: |
       Only allowed to use lowercase letters, hyphens and/or numbers.
       Should also start with 'sm-soln-graph-fraud' for permission management.
-  SolutionExecutionRole:
+  IamRole:
     Type: String
     Default: ""
     Description: |
@@ -71,6 +71,16 @@ Parameters:
     Description: Instance type of the SageMaker notebook instance
     Type: String
     Default:  "ml.m4.xlarge"
+  StackVersion:
+    Description: |
+      CloudFormation Stack version.
+      Use 'release' version unless you are customizing the
+      CloudFormation templates and solution artifacts.
+    Type: String
+    Default: release
+    AllowedValues:
+      - release
+      - development
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -80,7 +90,8 @@ Metadata:
           default: Solution Configuration
         Parameters:
           - SolutionPrefix
-          - SolutionExecutionRole
+          - IamRole
+          - StackVersion
       -
         Label:
           default: S3 Configuration
@@ -102,8 +113,10 @@ Metadata:
     ParameterLabels:
       SolutionPrefix:
         default: Solution Resources Name Prefix
-      SolutionExecutionRole:
+      IamRole:
         default: Solution IAM Role Arn
+      StackVersion:
+        default: Solution Stack Version
       S3HistoricalTransactionsPrefix:
         default: S3 Data Prefix
       S3ProcessingJobInputPrefix:
@@ -127,8 +140,10 @@ Metadata:
 
 Mappings:
   S3:
-    SolutionRef:
-      Bucket: "sagemaker-solutions"
+    release:
+      BucketPrefix: "sagemaker-solutions"
+    development:
+      BucketPrefix: "sagemaker-solutions-build"
   Lambda:
     DataPreprocessing:
       S3Key: "Fraud-detection-in-financial-networks/build/data_preprocessing.zip"
@@ -140,7 +155,7 @@ Mappings:
 
 Conditions:
   CreateClassicSageMakerResources: !Equals [ !Ref LaunchSageMakerNotebookClassic, "Yes" ]
-  CreateCustomSolutionRole: !Equals [!Ref SolutionExecutionRole, ""]
+  CreateCustomSolutionRole: !Equals [!Ref IamRole, ""]
   CreateCodeBuildProject: !Equals [!Ref BuildSageMakerContainersRemotely, "Yes"]
 
 Resources:
@@ -184,6 +199,22 @@ Resources:
             reason: Configuring logging requires supplying an existing customer S3 bucket to store logs
           - id: W51
             reason: Default access policy suffices
+
+  SolutionAssistantStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: !Sub
+        - "https://s3.amazonaws.com/${SolutionRefBucketBase}-${Region}/Fraud-detection-in-financial-networks/deployment/solution-assistant/solution-assistant.yaml"
+        - SolutionRefBucketBase: !FindInMap [S3, !Ref StackVersion, BucketPrefix]
+          Region: !Ref AWS::Region
+      Parameters:
+        SolutionPrefix: !Ref SolutionPrefix
+        SolutionsRefBucketName: !Sub
+          - "${SolutionRefBucketBase}-${AWS::Region}"
+          - SolutionRefBucketBase: !FindInMap [S3, !Ref StackVersion, BucketPrefix]
+        SolutionS3BucketName: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
+        ECRRepository: !Ref SageMakerProcessingJobContainerName
+        RoleArn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
   
   SageMakerPermissionsStack:
     Type: "AWS::CloudFormation::Stack"
@@ -191,7 +222,7 @@ Resources:
     Properties:
       TemplateURL: !Sub
       - "https://s3.amazonaws.com/${SolutionRefBucketBase}-${Region}/Fraud-detection-in-financial-networks/deployment/sagemaker-permissions-stack.yaml"
-      - SolutionRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
+      - SolutionRefBucketBase: !FindInMap [S3, !Ref StackVersion, BucketPrefix]
         Region: !Ref AWS::Region
       Parameters:
         SolutionPrefix: !Ref SolutionPrefix
@@ -204,7 +235,7 @@ Resources:
     Properties:
       TemplateURL: !Sub
       - "https://s3.amazonaws.com/${SolutionRefBucketBase}-${Region}/Fraud-detection-in-financial-networks/deployment/sagemaker-notebook-instance-stack.yaml"
-      - SolutionRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
+      - SolutionRefBucketBase: !FindInMap [S3, !Ref StackVersion, BucketPrefix]
         Region: !Ref AWS::Region
       Parameters:
         SolutionPrefix: !Ref SolutionPrefix
@@ -215,7 +246,7 @@ Resources:
         SageMakerNotebookInstanceType: !Ref SageMakerNotebookInstanceType
         SageMakerProcessingJobContainerName: !Ref SageMakerProcessingJobContainerName
         SageMakerProcessingJobContainerCodeBuild: !If [CreateCodeBuildProject, !Ref ProcessingJobContainerBuild, "local"]
-        NotebookInstanceExecutionRoleArn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
+        NotebookInstanceExecutionRoleArn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
 
   ProcessingJobContainerBuild:
     Condition: CreateCodeBuildProject
@@ -223,12 +254,12 @@ Resources:
     Properties:
       Name: !Sub "${SolutionPrefix}-processing-job-container-build"
       Description: !Sub "Build docker container for SageMaker Processing job for ${SolutionPrefix}"
-      ServiceRole: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
+      ServiceRole: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
       Source:
         Type: S3
         Location: !Sub
          - "${SolutionRefBucketBase}-${AWS::Region}/${SourceKey}"
-         - SolutionRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
+         - SolutionRefBucketBase: !FindInMap [S3, !Ref StackVersion, BucketPrefix]
            SourceKey: !FindInMap [CodeBuild, ProcessingContainer, S3Key]
       Environment:
         ComputeType: BUILD_GENERAL1_MEDIUM
@@ -255,21 +286,21 @@ Resources:
     Properties:
       Handler: "index.process_event"
       FunctionName: !Sub "${SolutionPrefix}-data-preprocessing"
-      Role: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
+      Role: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
       Environment:
         Variables:
           processing_job_ecr_repository: !Ref SageMakerProcessingJobContainerName
           processing_job_input_s3_prefix: !Ref S3ProcessingJobInputPrefix
           processing_job_instance_type: !Ref SageMakerProcessingJobInstanceType
           processing_job_output_s3_prefix: !Ref S3ProcessingJobOutputPrefix
-          processing_job_role_arn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
+          processing_job_role_arn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
           processing_job_s3_bucket: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
           processing_job_s3_raw_data_key: !Ref S3HistoricalTransactionsPrefix
       Runtime: "python3.7"
       Code:
         S3Bucket: !Sub
           - "${SolutionRefBucketBase}-${Region}"
-          - SolutionRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
+          - SolutionRefBucketBase: !FindInMap [S3, !Ref StackVersion, BucketPrefix]
             Region: !Ref AWS::Region
         S3Key: !FindInMap [Lambda, DataPreprocessing, S3Key]
       Timeout : 60
@@ -292,18 +323,18 @@ Resources:
     Properties:
       Handler: "index.process_event"
       FunctionName: !Sub "${SolutionPrefix}-model-training"
-      Role: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
+      Role: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
       Environment:
         Variables:
           training_job_instance_type: !Ref SageMakerTrainingJobInstanceType
           training_job_output_s3_prefix: !Ref S3TrainingJobOutputPrefix
-          training_job_role_arn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
+          training_job_role_arn: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
           training_job_s3_bucket: !Sub "${SolutionPrefix}-${AWS::AccountId}-${AWS::Region}"
       Runtime: "python3.7"
       Code:
         S3Bucket: !Sub
           - "${SolutionRefBucketBase}-${Region}"
-          - SolutionRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
+          - SolutionRefBucketBase: !FindInMap [S3, !Ref StackVersion, BucketPrefix]
             Region: !Ref AWS::Region
         S3Key: !FindInMap [Lambda, GraphModelling, S3Key]
       Timeout : 60
@@ -340,9 +371,9 @@ Outputs:
     Description: "AWS Region to be passed downstream to the notebook instance"
     Value: !Ref AWS::Region
 
-  NotebookInstanceExecutionRoleArn:
+  IamRole:
     Description: "Arn of SageMaker Execution Role"
-    Value: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref SolutionExecutionRole]
+    Value: !If [CreateCustomSolutionRole, !GetAtt SageMakerPermissionsStack.Outputs.SageMakerRoleArn, !Ref IamRole]
 
   SolutionPrefix:
     Description: "Solution Prefix for naming SageMaker transient resources"

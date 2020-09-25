@@ -25,7 +25,9 @@
                 "ecr:InitiateLayerUpload",
                 "ecr:CompleteLayerUpload",
                 "ecr:UploadLayerPart",
-                "ecr:TagResource"
+                "ecr:TagResource",
+                "ecr:DescribeImages",
+                "ecr:BatchDeleteImage"
             ],
             "Resource": [
                 "*",
@@ -95,6 +97,7 @@
         {
             "Action": [
                 "s3:ListBucket",
+                "s3:DeleteBucket",
                 "s3:GetObject",
                 "s3:PutObject",
                 "s3:DeleteObject"

@@ -41,4 +41,4 @@ s3_train_output = cfn_stack_outputs.get('S3TrainingJobOutputPrefix', 'training-o
 ecr_repository = cfn_stack_outputs.get('SageMakerProcessingJobContainerName', 'sm-soln-graph-fraud-preprocessing')
 container_build_project = cfn_stack_outputs.get('SageMakerProcessingJobContainerBuild', 'local')
 
-role = cfn_stack_outputs.get('NotebookInstanceExecutionRoleArn', default_role)
+role = cfn_stack_outputs.get('IamRole', default_role)

@@ -34,11 +34,17 @@ Parameters:
   NotebookInstanceExecutionRoleArn:
     Type: String
     Description: Execution Role for the SageMaker notebook instance
+  StackVersion:
+    Type: String
+    Description: CloudFormation Stack version.
+    Default: "release"
 
 Mappings:
   S3:
-    SolutionRef:
-      Bucket: "sagemaker-solutions"
+    release:
+      BucketPrefix: "sagemaker-solutions"
+    development:
+      BucketPrefix: "sagemaker-solutions-build"
   SageMaker:
     Source:
       S3Key: "Fraud-detection-in-financial-networks/source/sagemaker/"
@@ -72,7 +78,7 @@ Resources:
               echo '{' >> stack_outputs.json
               echo '  "AccountID": "${AWS::AccountId}",' >> stack_outputs.json
               echo '  "AWSRegion": "${AWS::Region}",' >> stack_outputs.json
-              echo '  "NotebookInstanceExecutionRoleArn": "${NotebookInstanceExecutionRoleArn}",' >> stack_outputs.json
+              echo '  "IamRole": "${NotebookInstanceExecutionRoleArn}",' >> stack_outputs.json
               echo '  "SolutionPrefix": "${SolutionPrefix}",' >> stack_outputs.json
               echo '  "SolutionS3Bucket": "${SolutionS3BucketName}",' >> stack_outputs.json
               echo '  "S3InputDataPrefix": "${S3InputDataPrefix}",' >> stack_outputs.json
@@ -82,7 +88,7 @@ Resources:
               echo '  "SageMakerProcessingJobContainerBuild": "${SageMakerProcessingJobContainerCodeBuild}"' >> stack_outputs.json
               echo '}' >> stack_outputs.json
               sudo chown -R ec2-user:ec2-user .
-            - SolutionsRefBucketBase: !FindInMap [S3, SolutionRef, Bucket]
+            - SolutionsRefBucketBase: !FindInMap [S3, !Ref StackVersion, BucketPrefix]
               SolutionsRefSource: !FindInMap [SageMaker, Source, S3Key]
 Outputs:
   SourceCode:

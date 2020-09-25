@@ -86,7 +86,8 @@
                 "lambda:CreateFunction",
                 "lambda:DeleteFunction",
                 "lambda:GetFunction",
-                "lambda:GetFunctionConfiguration"
+                "lambda:GetFunctionConfiguration",
+                "lambda:InvokeFunction"
             ],
             "Resource": "arn:aws:lambda:*:*:function:sm-soln-*"
         },
