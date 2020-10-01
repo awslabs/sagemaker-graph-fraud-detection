@@ -13,6 +13,11 @@
             "default": "sm-soln-graph-fraud"
         },
         {
+            "name": "IamRole",
+            "type": "text",
+            "default": ""
+        },
+        {
             "name": "S3HistoricalTransactionsPrefix",
             "type": "text",
             "default": "raw-data"
@@ -33,9 +38,14 @@
             "default": "training-output"
         },
         {
-            "name": "LaunchSageMakerNotebookClassic",
+            "name": "CreateSageMakerNotebookInstance",
             "type": "text",
-            "default": "No"
+            "default": "false"
+        },
+        {
+            "name": "BuildSageMakerContainersRemotely",
+            "type": "text",
+            "default": "true"
         },
         {
             "name": "SageMakerProcessingJobContainerName",
@@ -56,6 +66,11 @@
             "name": "SageMakerNotebookInstanceType",
             "type": "text",
             "default": "ml.m4.xlarge"
+        },
+        {
+            "name": "StackVersion",
+            "type": "text",
+            "default": "release"
         }
     ],
     "acknowledgements": ["CAPABILITY_IAM","CAPABILITY_NAMED_IAM"],

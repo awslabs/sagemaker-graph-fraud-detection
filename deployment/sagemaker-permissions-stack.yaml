@@ -35,6 +35,8 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
+              AWS:
+              - !Sub "arn:aws:iam::${AWS::AccountId}:root"
               Service:
               - sagemaker.amazonaws.com
               - lambda.amazonaws.com

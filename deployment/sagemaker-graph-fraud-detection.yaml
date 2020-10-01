@@ -37,24 +37,24 @@ Parameters:
     Description: Enter the S3 prefix where model and output artifacts from the training job should be stored
     Type: String
     Default: "training-output"
-  LaunchSageMakerNotebookClassic:
+  CreateSageMakerNotebookInstance:
     Description: Whether to launch classic sagemaker notebook instance
     Type: String
     AllowedValues:
-      - "Yes"
-      - "No"
-    Default: "No"
+      - "true"
+      - "false"
+    Default: "false"
   BuildSageMakerContainersRemotely:
     Description: |
       Whether to launch a CodeBuild project to build sagemaker containers.
-      If set to 'Yes' SageMaker notebook will use the CodeBuild project to launch a build job for sagemaker containers.
-      If set to 'No' SageMaker notebook will attempt to build solution containers on the notebook instance.
+      If set to 'true' SageMaker notebook will use the CodeBuild project to launch a build job for sagemaker containers.
+      If set to 'false' SageMaker notebook will attempt to build solution containers on the notebook instance.
       This may lead to some unexpected issues as docker isn't installed in SageMaker studio containers.
     Type: String
     AllowedValues:
-      - "Yes"
-      - "No"
-    Default: "Yes"
+      - "true"
+      - "false"
+    Default: "true"
   SageMakerProcessingJobContainerName:
     Description: Name of the SageMaker processing job ECR Container
     Type: String
@@ -104,7 +104,7 @@ Metadata:
         Label:
           default: SageMaker Configuration
         Parameters:
-          - LaunchSageMakerNotebookClassic
+          - CreateSageMakerNotebookInstance
           - BuildSageMakerContainersRemotely
           - SageMakerProcessingJobContainerName
           - SageMakerProcessingJobInstanceType
@@ -125,7 +125,7 @@ Metadata:
         default: S3 Preprocessed Data Prefix
       S3TrainingJobOutputPrefix:
         default: S3 Training Results Prefix
-      LaunchSageMakerNotebookClassic:
+      CreateSageMakerNotebookInstance:
         default: Launch Classic SageMaker Notebook Instance
       BuildSageMakerContainersRemotely:
         default: Build SageMaker containers on AWS CodeBuild
@@ -154,9 +154,9 @@ Mappings:
       S3Key: "Fraud-detection-in-financial-networks/build/sagemaker_data_preprocessing.zip"
 
 Conditions:
-  CreateClassicSageMakerResources: !Equals [ !Ref LaunchSageMakerNotebookClassic, "Yes" ]
+  CreateClassicSageMakerResources: !Equals [ !Ref CreateSageMakerNotebookInstance, "true" ]
   CreateCustomSolutionRole: !Equals [!Ref IamRole, ""]
-  CreateCodeBuildProject: !Equals [!Ref BuildSageMakerContainersRemotely, "Yes"]
+  CreateCodeBuildProject: !Equals [!Ref BuildSageMakerContainersRemotely, "true"]
 
 Resources:
   S3Bucket:
