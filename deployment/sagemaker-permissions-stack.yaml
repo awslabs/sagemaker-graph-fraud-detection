@@ -4,15 +4,15 @@ Parameters:
   SolutionPrefix:
     Description: Enter the name of the prefix for the solution used for naming
     Type: String
-    Default: "sm-soln-graph-fraud-detection"
+    Default: "sagemaker-soln-graph-fraud-detection"
   SolutionS3BucketName:
     Description: Enter the name of the S3 bucket for the solution
     Type: String
-    Default: "sm-soln-*"
+    Default: "sagemaker-soln-*"
   SolutionCodeBuildProject:
     Description: Enter the name of the Code build project for the solution
     Type: String
-    Default: "sm-soln-*"
+    Default: "sagemaker-soln-*"
   StackVersion:
     Description: Enter the name of the template stack version
     Type: String

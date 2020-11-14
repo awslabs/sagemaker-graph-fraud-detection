@@ -3,16 +3,16 @@ Description: "(SA0002) - sagemaker-graph-fraud-detection: Solution for training 
 Parameters:
   SolutionPrefix:
     Type: String
-    Default: "sm-soln-graph-fraud-detection"
+    Default: "sagemaker-soln-graph-fraud"
     Description: |
       Used to name resources created as part of this stack (and inside nested stacks too).
       Can be the same as the stack name used by AWS CloudFormation, but this field has extra
       constraints because it's used to name resources with restrictions (e.g. Amazon S3 bucket
       names cannot contain capital letters).
-    AllowedPattern: '^sm-soln-graph-fraud-[a-z0-9\-]{1,20}$'
+    AllowedPattern: '^sagemaker-soln-[a-z0-9\-]{1,20}$'
     ConstraintDescription: |
       Only allowed to use lowercase letters, hyphens and/or numbers.
-      Should also start with 'sm-soln-graph-fraud' for permission management.
+      Should also start with 'sagemaker-soln-graph-fraud' for permission management.
   IamRole:
     Type: String
     Default: ""
@@ -58,7 +58,7 @@ Parameters:
   SageMakerProcessingJobContainerName:
     Description: Name of the SageMaker processing job ECR Container
     Type: String
-    Default:  "sm-soln-graph-fraud-preprocessing"
+    Default:  "sagemaker-soln-graph-fraud-preprocessing"
   SageMakerProcessingJobInstanceType:
     Description: Instance type of the SageMaker processing job
     Type: String

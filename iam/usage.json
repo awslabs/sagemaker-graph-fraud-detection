@@ -41,7 +41,7 @@
                 "codebuild:StartBuild"
             ],
             "Resource": [
-                "arn:aws:codebuild:*:*:project/sm-soln-*",
+                "arn:aws:codebuild:*:*:project/sagemaker-soln-*",
                 "arn:aws:codebuild:*:*:build/*"
             ],
             "Effect": "Allow"
@@ -81,7 +81,7 @@
                 "iam:PassRole"
             ],
             "Resource": [
-                "arn:aws:iam::*:role/sm-soln-*"
+                "arn:aws:iam::*:role/sagemaker-soln-*"
             ],
             "Effect": "Allow"
         },
@@ -90,7 +90,7 @@
                 "iam:GetRole"
             ],
             "Resource": [
-                "arn:aws:iam::*:role/sm-soln-*"
+                "arn:aws:iam::*:role/sagemaker-soln-*"
             ],
             "Effect": "Allow"
         },
@@ -105,8 +105,8 @@
             "Resource": [
                 "arn:aws:s3:::sagemaker-solutions-*",
                 "arn:aws:s3:::sagemaker-solutions-*/*",
-                "arn:aws:s3:::sm-soln-*",
-                "arn:aws:s3:::sm-soln-*/*"
+                "arn:aws:s3:::sagemaker-soln-*",
+                "arn:aws:s3:::sagemaker-soln-*/*"
             ],
             "Effect": "Allow"
         },

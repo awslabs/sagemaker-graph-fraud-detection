@@ -31,14 +31,14 @@ if os.path.exists(cfn_stack_outputs_filepath):
 aws_account = cfn_stack_outputs.get('AccountID', account_id)
 region_name = cfn_stack_outputs.get('AWSRegion', region)
 
-solution_prefix = cfn_stack_outputs.get('SolutionPrefix', 'sm-soln-graph-fraud')
+solution_prefix = cfn_stack_outputs.get('SolutionPrefix', 'sagemaker-soln-graph-fraud')
 solution_bucket = cfn_stack_outputs.get('SolutionS3Bucket', default_bucket)
 
 s3_data_prefix = cfn_stack_outputs.get('S3InputDataPrefix', 'raw-data')
 s3_processing_output = cfn_stack_outputs.get('S3ProcessingJobOutputPrefix', 'processed-data')
 s3_train_output = cfn_stack_outputs.get('S3TrainingJobOutputPrefix', 'training-output')
 
-ecr_repository = cfn_stack_outputs.get('SageMakerProcessingJobContainerName', 'sm-soln-graph-fraud-preprocessing')
+ecr_repository = cfn_stack_outputs.get('SageMakerProcessingJobContainerName', 'sagemaker-soln-graph-fraud-preprocessing')
 container_build_project = cfn_stack_outputs.get('SageMakerProcessingJobContainerBuild', 'local')
 
 role = cfn_stack_outputs.get('IamRole', default_role)

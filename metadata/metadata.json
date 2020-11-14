@@ -1,5 +1,5 @@
 {
-    "id": "sm-soln-gfd",
+    "id": "sagemaker-soln-gfd",
     "name": "Amazon SageMaker and Deep Graph Library for Fraud Detection in Heterogeneous Graphs",
     "shortName": "Graph Fraud Detection",
     "priority": 0,
@@ -10,7 +10,7 @@
         {
             "name": "SolutionPrefix",
             "type": "text",
-            "default": "sm-soln-graph-fraud"
+            "default": "sagemaker-soln-graph-fraud"
         },
         {
             "name": "IamRole",
@@ -50,7 +50,7 @@
         {
             "name": "SageMakerProcessingJobContainerName",
             "type": "text",
-            "default": "sm-soln-graph-fraud-preprocessing"
+            "default": "sagemaker-soln-graph-fraud-preprocessing"
         },
         {
             "name": "SageMakerProcessingJobInstanceType",
@@ -74,9 +74,9 @@
         }
     ],
     "acknowledgements": ["CAPABILITY_IAM","CAPABILITY_NAMED_IAM"],
-    "cloudFormationTemplate": "s3-us-east-2.amazonaws.com/sagemaker-solutions-us-east-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml",
+    "cloudFormationTemplate": "s3-us-east-2.amazonaws.com/sagemaker-solutions-build-us-east-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml",
     "serviceCatalogProduct": "TBD",
-    "copyS3Source": "sagemaker-solutions-us-east-2",
+    "copyS3Source": "sagemaker-solutions-build-us-east-2",
     "copyS3SourcePrefix": "Fraud-detection-in-financial-networks/source/sagemaker",
     "notebooksDirectory": "Fraud-detection-in-financial-networks/source/sagemaker",
     "notebookPaths": [

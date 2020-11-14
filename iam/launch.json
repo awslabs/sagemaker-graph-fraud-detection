@@ -16,7 +16,7 @@
                 "cloudformation:CreateStack"
             ],
             "Resource": [
-                "arn:aws:cloudformation:*:*:stack/sm-soln-*"
+                "arn:aws:cloudformation:*:*:stack/sagemaker-soln-*"
             ],
             "Condition" : {
                 "ForAllValues:StringLike" : {
@@ -37,7 +37,7 @@
             "Action": [
                 "cloudformation:DeleteStack"
             ],
-            "Resource": "arn:aws:cloudformation:*:*:stack/sm-soln-*"
+            "Resource": "arn:aws:cloudformation:*:*:stack/sagemaker-soln-*"
         },
         {
             "Effect": "Allow",
@@ -68,7 +68,7 @@
             "Action": [
                 "iam:PassRole"
             ],
-            "Resource": "arn:aws:iam::*:role/sm-soln-*"
+            "Resource": "arn:aws:iam::*:role/sagemaker-soln-*"
         },
         {
             "Effect": "Allow",
@@ -76,7 +76,7 @@
                 "codebuild:CreateProject",
                 "codebuild:DeleteProject"
             ],
-            "Resource": "arn:aws:codebuild:*:*:project/sm-soln-*"
+            "Resource": "arn:aws:codebuild:*:*:project/sagemaker-soln-*"
         },
         {
             "Effect": "Allow",
@@ -89,7 +89,7 @@
                 "lambda:GetFunctionConfiguration",
                 "lambda:InvokeFunction"
             ],
-            "Resource": "arn:aws:lambda:*:*:function:sm-soln-*"
+            "Resource": "arn:aws:lambda:*:*:function:sagemaker-soln-*"
         },
         {
             "Effect": "Allow",
@@ -100,7 +100,7 @@
                 "s3:PutBucketPublicAccessBlock",
                 "s3:PutEncryptionConfiguration"
             ],
-            "Resource": "arn:aws:s3:::sm-soln-*"
+            "Resource": "arn:aws:s3:::sagemaker-soln-*"
         },
         {
             "Effect": "Allow",
@@ -117,7 +117,7 @@
                 "sagemaker:DescribeNotebookInstance",
                 "sagemaker:DeleteNotebookInstance"
             ],
-            "Resource": "arn:aws:sagemaker:*:*:notebook-instance/sm-soln-*"
+            "Resource": "arn:aws:sagemaker:*:*:notebook-instance/sagemaker-soln-*"
         },
         {
             "Effect": "Allow",
@@ -126,7 +126,7 @@
                 "sagemaker:DescribeNotebookInstanceLifecycleConfig",
                 "sagemaker:DeleteNotebookInstanceLifecycleConfig"
             ],
-            "Resource": "arn:aws:sagemaker:*:*:notebook-instance-lifecycle-config/sm-soln-*"
+            "Resource": "arn:aws:sagemaker:*:*:notebook-instance-lifecycle-config/sagemaker-soln-*"
         }
     ]
 }

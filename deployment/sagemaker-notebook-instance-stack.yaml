@@ -26,7 +26,7 @@ Parameters:
   SageMakerProcessingJobContainerName:
     Description: Name of the SageMaker processing job ECR Container
     Type: String
-    Default:  "sm-soln-graph-fraud-preprocessing"
+    Default:  "sagemaker-soln-graph-fraud-preprocessing"
   SageMakerProcessingJobContainerCodeBuild:
     Description: Name of the SageMaker processing container code build project
     Type: String
