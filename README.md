@@ -18,17 +18,15 @@ See the [details page](docs/details.md) to learn more about the techniques used,
 
 ## Getting Started
 
-To get started quickly, use the following quick-launch link to create a CloudFormation stack and deploy the resources in this project.
+You will need an AWS account to use this solution. Sign up for an account [here](https://aws.amazon.com/).
 
-| Region | Stack |
-| ---- | ---- |
-|US East (N. Virginia) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-east-1.console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/quickcreate?templateURL=https://s3.amazonaws.com/sagemaker-solutions-us-east-1/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=sagemaker-soln-graph-fraud-detection-stack&param_CreateSageMakerNotebookInstance=true) |
-|US East (Ohio) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-east-2.console.aws.amazon.com/cloudformation/home?region=us-east-2#/stacks/quickcreate?templateURL=https://s3-us-east-2.amazonaws.com/sagemaker-solutions-us-east-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=sagemaker-soln-graph-fraud-detection-stack&param_CreateSageMakerNotebookInstance=true) |
-|US West (Oregon) |  [<img src="https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png">](https://us-west-2.console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/quickcreate?templateURL=https://s3-us-west-2.amazonaws.com/sagemaker-solutions-us-west-2/Fraud-detection-in-financial-networks/deployment/sagemaker-graph-fraud-detection.yaml&stackName=sagemaker-soln-graph-fraud-detection-stack&param_CreateSageMakerNotebookInstance=true) |
+To run this JumpStart 1P Solution and have the infrastructure deploy to your AWS account you will need to create an active SageMaker Studio instance (see Onboard to Amazon SageMaker Studio). When your Studio instance is Ready, use the instructions in SageMaker JumpStart to 1-Click Launch the solution.
 
-On the stack creation page, verify that the **Launch Classic SageMaker Notebook Instance** field under SageMaker configurations is set to 'true', check the boxes to acknowledge creation of IAM resources, and click **Create Stack**.
+The solution artifacts are included in this GitHub repository for reference.
 
-Once the stack is created, go to the Outputs tab and click on the SageMakerNotebook link. This will open up the jupyter notebook in a SageMaker Notebook instance where you can run the code in the notebook.
+*Note*: Solutions are available in most regions including us-west-2, and us-east-1.
+
+**Caution**: Cloning this GitHub repository and running the code manually could lead to unexpected issues! Use the AWS CloudFormation template. You'll get an Amazon SageMaker Notebook instance that's been correctly setup and configured to access the other resources in the solution.
 
 ## Architecture
 
