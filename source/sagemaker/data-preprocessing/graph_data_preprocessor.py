@@ -32,7 +32,7 @@ def get_logger(name):
 def load_data(data_dir, transaction_data, identity_data, train_data_ratio, output_dir):
     transaction_df = pd.read_csv(os.path.join(data_dir, transaction_data))
     logging.info("Shape of transaction data is {}".format(transaction_df.shape))
-    logging.info("# Tagged transactions: {}".format(len(transaction_df) - transaction_df.isFraud.isnull().sum()))
+    logging.info("# Tagged transactions: {}".format(len(transaction_df) - transaction_df.isFraud.sum()))
 
     identity_df = pd.read_csv(os.path.join(data_dir, identity_data))
     logging.info("Shape of identity data is {}".format(identity_df.shape))
